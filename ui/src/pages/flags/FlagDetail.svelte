@@ -11,6 +11,7 @@
   import FlagForm from './FlagForm.svelte';
   import ValueInput from './ValueInput.svelte';
   import RuleEditor from './RuleEditor.svelte';
+  import { untrack } from 'svelte';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { router } from '../../lib/router.svelte.js';
@@ -26,10 +27,24 @@
   const f = $derived(d?.flag);
   const envNames = $derived(/** @type {string[]} */ (f ? Object.keys(f.environments) : []));
   const canEdit = $derived(session.isAdmin && f && !f.archived);
-  /** Draft state per environment, edited locally and saved as one PATCH. @type {Record<string, any>} */
+  /** Fields a panel edits and saves together; `enabled` belongs to the switch and is never part of a draft save. @param {any} s */
+  const pick = (s) => ({ value: s.value, offValue: s.offValue, percentage: s.percentage, rules: s.rules });
+  /** Draft per environment, edited locally and saved as one PATCH. @type {Record<string, { version: number, value: unknown, offValue: unknown, percentage: number, rules: any[] }>} */
   let drafts = $state({});
-  $effect(() => { if (f) drafts = Object.fromEntries(envNames.map((e) => [e, structuredClone(/** @type {any} */ ($state.snapshot(f.environments[e])))])); });
-  const dirty = (/** @type {string} */ e) => JSON.stringify(drafts[e]) !== JSON.stringify(f?.environments[e]);
+  // Reload keeps a dirty draft as long as the live state it was based on is unchanged (same version);
+  // saving one environment must not throw away unsaved edits in another.
+  $effect(() => {
+    if (!f) return;
+    const next = { ...untrack(() => drafts) };
+    for (const e of envNames) {
+      const live = f.environments[e];
+      const cur = next[e];
+      if (!cur || cur.version !== live.version || JSON.stringify(pick(cur)) === JSON.stringify(pick(live))) next[e] = { version: live.version, ...structuredClone(/** @type {any} */ ($state.snapshot(pick(live)))) };
+    }
+    drafts = next;
+  });
+  const dirty = (/** @type {string} */ e) => Boolean(drafts[e] && f) && JSON.stringify(pick(drafts[e])) !== JSON.stringify(pick(f.environments[e]));
+  const clampPct = (/** @type {unknown} */ v) => Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
   /** @type {Record<string, boolean>} */ let busy = $state({});
   /** @param {string} e @param {() => Promise<unknown>} fn @param {string} ok */
   async function run(e, fn, ok) {
@@ -37,7 +52,7 @@
     try { await fn(); toasts.ok(ok); await res.load(); } catch (err) { toasts.error(err); } finally { busy = { ...busy, [e]: false }; }
   }
   /** @param {string} e */
-  const save = (e) => run(e, () => { const s = drafts[e]; return api.patch(`${base}/envs/${e}`, { enabled: s.enabled, value: s.value, offValue: s.offValue, percentage: s.percentage, rules: s.rules }); }, t('fl.saved', { env: e }));
+  const save = (e) => run(e, () => { const s = drafts[e]; return api.patch(`${base}/envs/${e}`, { value: s.value, offValue: s.offValue, percentage: clampPct(s.percentage), rules: s.rules }); }, t('fl.saved', { env: e }));
   /** @param {string} e @param {boolean} next */
   const toggle = (e, next) => run(e, () => api.patch(`${base}/envs/${e}`, { enabled: next }), t(next ? 'fl.enabledIn' : 'fl.disabledIn', { key: id, env: e }));
   /** @param {string} from @param {string} to */
@@ -109,8 +124,8 @@
               <div class="field"><span class="small" style="font-weight:550;color:var(--text-2)">{t('fl.rules')}</span><RuleEditor kind={f.kind} rules={s.rules} disabled={!canEdit} defaultValue={s.value} onchange={(rules) => { drafts[e].rules = rules; }} /></div>
               {#if canEdit}
                 <div class="row wrap">
-                  <button class="btn primary" onclick={() => save(e)} disabled={busy[e] || !dirty(e)}><Icon name="check" size={14} /> {t('common.save')}</button>
-                  {#if dirty(e)}<button class="btn ghost" onclick={() => { drafts[e] = structuredClone(/** @type {any} */ ($state.snapshot(live))); }}>{t('fl.discard')}</button>{/if}
+                  <button class="btn primary" onclick={() => save(e)} disabled={busy[e] || !dirty(e) || s.rules.some((/** @type {any} */ r, /** @type {number} */ i) => s.rules.findIndex((/** @type {any} */ x) => x.id === r.id) !== i)}><Icon name="check" size={14} /> {t('common.save')}</button>
+                  {#if dirty(e)}<button class="btn ghost" onclick={() => { drafts[e] = { version: live.version, ...structuredClone(/** @type {any} */ ($state.snapshot(pick(live)))) }; }}>{t('fl.discard')}</button>{/if}
                   <span class="grow"></span>
                   {#if envNames.length > 1}<select class="select" style="width:auto" aria-label={t('fl.copyTo')} disabled={busy[e]} onchange={(ev) => { const to = /** @type {HTMLSelectElement} */ (ev.currentTarget).value; if (to) copy(e, to); /** @type {HTMLSelectElement} */ (ev.currentTarget).value = ''; }}><option value="">{t('fl.copyTo')}…</option>{#each envNames.filter((x) => x !== e) as x (x)}<option value={x}>{x}</option>{/each}</select>{/if}
                 </div>

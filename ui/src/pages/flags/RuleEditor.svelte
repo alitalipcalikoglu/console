@@ -22,9 +22,13 @@
   function update(i, patch) { onchange(rules.map((r, j) => (j === i ? { ...r, ...patch } : r))); }
   /** @param {number} i @param {Partial<Rule['match']>} patch */
   function updateMatch(i, patch) { const m = { ...rules[i].match, ...patch }; for (const k of /** @type {const} */ (['userIds', 'emails'])) if (!m[k]?.length) delete m[k]; if (m.attrs && !Object.keys(m.attrs).length) delete m.attrs; update(i, { match: m }); }
-  function add() { onchange([...rules, { id: `rule-${rules.length + 1}`, name: '', match: {}, value: defaultValue }]); }
+  /** Ids must be unique within the state; count up past every id already in use. */
+  function add() { let n = rules.length + 1; while (rules.some((r) => r.id === `rule-${n}`)) n++; onchange([...rules, { id: `rule-${n}`, name: '', match: {}, value: defaultValue }]); }
+  const duplicate = $derived(new Set(rules.map((r) => r.id).filter((id, i, all) => all.indexOf(id) !== i)));
   /** @param {number} i @param {number} dir */
   function move(i, dir) { const j = i + dir; if (j < 0 || j >= rules.length) return; const next = [...rules]; [next[i], next[j]] = [next[j], next[i]]; onchange(next); }
+  /** A name change re-derives the id only while the id is still automatic (rule-N or the slug of the old name). */
+  function idFor(/** @type {Rule} */ r, /** @type {string} */ name) { const auto = /^rule-\d+$/.test(r.id) || r.id === slug(r.name ?? ''); const next = slug(name); return auto && next ? next : r.id; }
   const slug = (/** @type {string} */ s) => s.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 </script>
 
@@ -33,13 +37,15 @@
     <div class="rule">
       <div class="head">
         <span class="badge plain">{i + 1}</span>
-        <input class="input name" placeholder={t('fl.ruleName')} value={r.name ?? ''} {disabled} oninput={(e) => { const name = /** @type {HTMLInputElement} */ (e.currentTarget).value; update(i, { name, id: r.id.startsWith('rule-') || r.id === slug(r.name ?? '') ? (slug(name) || r.id) : r.id }); }} />
+        <input class="input name" placeholder={t('fl.ruleName')} value={r.name ?? ''} {disabled} oninput={(e) => { const name = /** @type {HTMLInputElement} */ (e.currentTarget).value; update(i, { name, id: idFor(r, name) }); }} />
         <span class="tools">
-          <button class="btn ghost icon sm" {disabled} onclick={() => move(i, -1)} aria-label={t('fl.moveUp')} title={t('fl.moveUp')}><Icon name="chevron" size={14} /></button>
-          <button class="btn ghost icon sm" {disabled} onclick={() => move(i, 1)} aria-label={t('fl.moveDown')} title={t('fl.moveDown')}><Icon name="chevron" size={14} /></button>
+          {#if rules.length > 1}
+          <button class="btn ghost icon sm up" disabled={disabled || i === 0} onclick={() => move(i, -1)} aria-label={t('fl.moveUp')} title={t('fl.moveUp')}><Icon name="chevron" size={14} /></button>
+          <button class="btn ghost icon sm down" disabled={disabled || i === rules.length - 1} onclick={() => move(i, 1)} aria-label={t('fl.moveDown')} title={t('fl.moveDown')}><Icon name="chevron" size={14} /></button>
+          {/if}
           <button class="btn ghost icon sm danger" {disabled} onclick={() => onchange(rules.filter((_, j) => j !== i))} aria-label={t('common.delete')} title={t('common.delete')}><Icon name="trash" size={14} /></button>
         </span>
-        <span class="mono xs faint id">id: {r.id}</span>
+        <span class="mono xs id {duplicate.has(r.id) ? 'danger-text' : 'faint'}">id: {r.id}{#if duplicate.has(r.id)} · {t('fl.duplicateId')}{/if}</span>
       </div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
         <div class="field"><label for="r-{i}-users">{t('fl.userIds')}</label><input id="r-{i}-users" class="input mono" value={list(r.match.userIds)} {disabled} onchange={(e) => updateMatch(i, { userIds: parse(/** @type {HTMLInputElement} */ (e.currentTarget).value) })} placeholder="u_1001, u_1002" /></div>
@@ -58,7 +64,7 @@
   .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; min-width: 0; }
   .head .name { flex: 1 1 140px; min-width: 0; }
   .head .tools { display: inline-flex; gap: 2px; flex: none; }
-  .head .tools .btn:nth-child(1) :global(svg) { transform: rotate(-90deg); }
-  .head .tools .btn:nth-child(2) :global(svg) { transform: rotate(90deg); }
+  .head .tools .up :global(svg) { transform: rotate(-90deg); }
+  .head .tools .down :global(svg) { transform: rotate(90deg); }
   .head .id { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
