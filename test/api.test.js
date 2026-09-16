@@ -97,6 +97,8 @@ test('static app: index, SPA fallback, hashed assets immutable, API 404 stays JS
   res = await t.app.inject('/sw.js');
   assert.equal(res.headers['service-worker-allowed'], '/');
   assert.equal((await t.app.inject('/missing.png')).statusCode, 404);
+  assert.equal((await t.app.inject('/assets/gone-abc123.js')).statusCode, 404);
+  assert.equal((await t.app.inject('/flags/flags/flags/checkout.new')).statusCode, 200, 'client routes may contain dots');
   res = await t.app.inject('/api/nothing');
   assert.equal(res.statusCode, 404);
   assert.equal(res.json().error.code, 'NOT_FOUND');

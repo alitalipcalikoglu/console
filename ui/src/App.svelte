@@ -20,6 +20,8 @@
   import EventDetail from './pages/audit/EventDetail.svelte';
   import Links from './pages/shortlink/Links.svelte';
   import LinkDetail from './pages/shortlink/LinkDetail.svelte';
+  import Flags from './pages/flags/Flags.svelte';
+  import FlagDetail from './pages/flags/FlagDetail.svelte';
   import Audit from './pages/Audit.svelte';
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
@@ -67,6 +69,8 @@
       {:else if match.pattern === '/audit/:sid/events/:id'}<EventDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/shortlink/:sid'}<Links sid={match.params.sid} />
       {:else if match.pattern === '/shortlink/:sid/links/:id'}<LinkDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/flags/:sid'}<Flags sid={match.params.sid} />
+      {:else if match.pattern === '/flags/:sid/flags/:id'}<FlagDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
       {:else if match.pattern === '/account'}<Account />

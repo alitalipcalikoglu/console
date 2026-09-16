@@ -109,6 +109,8 @@ export class ConsoleApi {
     return [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => createHash('sha256').update(m[1]).digest('base64'));
   }
   /** Content types the browser may render inline from the file proxy; everything else downloads as an opaque blob. */
+  /** Paths that can only be static files: hashed assets, icons, and top-level files with a web extension. */
+  static ASSET_PATH = /^\/(assets\/|icons\/|[^/]+\.(png|jpe?g|gif|webp|svg|ico|js|mjs|css|map|json|webmanifest|txt|xml|woff2?|ttf)$)/i;
   static INLINE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
   /**
@@ -222,7 +224,8 @@ export class ConsoleApi {
       const path = request.url.split('?')[0];
       if (request.method !== 'GET' && request.method !== 'HEAD') return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'route not found' } });
       if (path.startsWith('/api/')) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'route not found' } });
-      if (/\.[a-z0-9]{2,8}$/i.test(path)) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'file not found' } });
+      // Asset-looking paths stay JSON 404s; client routes may contain dots (flag keys, emails), so only known asset shapes count.
+      if (ConsoleApi.ASSET_PATH.test(path)) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'file not found' } });
       reply.header('cache-control', 'no-cache');
       return reply.sendFile('index.html');
     });

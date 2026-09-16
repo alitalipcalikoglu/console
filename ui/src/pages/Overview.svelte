@@ -39,6 +39,7 @@
       case 'gateway': { const routes = Object.values(m.routes ?? {}); const req = routes.reduce((a, /** @type {any} */ r) => a + Object.values(r.requests).reduce((x, y) => x + Number(y), 0), 0); return [[t('gateway.requests'), fmt.int(req)], [t('gateway.routes'), fmt.int(routes.length)], [t('gateway.rateLimited'), fmt.int(m.rejected?.rate_limited ?? 0)]]; }
       case 'audit': return [[t('ev.totalEvents'), fmt.int(m.total)], [t('ev.lastHour'), fmt.int(m.lastHour)], [t('ev.headSeq'), fmt.int(m.headSeq)], [t('ev.dbSize'), fmt.bytes(m.dbBytes)]];
       case 'shortlink': return [[t('sl.activeLinks'), fmt.int(m.activeLinks)], [t('sl.clicks'), fmt.int(m.clicks)], [t('sl.clicksLastHour'), fmt.int(m.clicksLastHour)], [t('sl.inactiveLinks'), fmt.int(m.inactiveLinks)]];
+      case 'flags': return [[t('fl.flags'), fmt.int(m.activeFlags)], ...Object.entries(m.enabledByEnv ?? {}).map(([env, n]) => [`${env} ${t('fl.enabledShort')}`, fmt.int(/** @type {number} */ (n))]), [t('fl.archived'), fmt.int(m.archivedFlags)]];
       default: return [];
     }
   }

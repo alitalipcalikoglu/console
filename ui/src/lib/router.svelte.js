@@ -61,5 +61,5 @@ export class Router {
 
 export const router = new Router([
   '/login', '/', '/notify/:sid', '/notify/:sid/messages/:id', '/auth/:sid', '/auth/:sid/users/:id',
-  '/media/:sid', '/media/:sid/files/:id', '/gateway/:sid', '/audit/:sid', '/audit/:sid/events/:id', '/shortlink/:sid', '/shortlink/:sid/links/:id', '/audit', '/admins', '/account',
+  '/media/:sid', '/media/:sid/files/:id', '/gateway/:sid', '/audit/:sid', '/audit/:sid/events/:id', '/shortlink/:sid', '/shortlink/:sid/links/:id', '/flags/:sid', '/flags/:sid/flags/:id', '/audit', '/admins', '/account',
 ]);
