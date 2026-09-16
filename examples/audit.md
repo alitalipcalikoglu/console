@@ -13,6 +13,7 @@
 | `auth.` | `user.create`, `user.update`, `user.delete`, `user.sessions.revoke_all`, `user.session.revoke`, `user.resend_verification`, `user.password_reset_email` |
 | `media.` | `file.upload` (name, size), `file.update`, `file.delete`, `file.restore`, `ticket.create` |
 | `service.` | `settings.update` (auto-refresh change, with the new `polling` value) |
+| `audit.` | `chain.verify` (result), `events.export` (format and filter) on the audit service pages |
 
 Reads are not recorded; writes always are, including failed attempts to sign in.
 
