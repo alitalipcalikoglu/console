@@ -50,6 +50,11 @@ class Schemas {
  * each service (never a generic proxy), and the static Svelte app with SPA fallback.
  */
 export class ConsoleApi {
+  /** Svelte needs inline style attributes; scripts and connections stay same-origin. */
+  static APP_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+  /** Content types the browser may render inline from the file proxy; everything else downloads as an opaque blob. */
+  static INLINE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+
   /**
    * @param {object} deps
    * @param {Config} deps.config
@@ -94,6 +99,8 @@ export class ConsoleApi {
       reply.header('x-content-type-options', 'nosniff');
       reply.header('referrer-policy', 'same-origin');
       reply.header('x-frame-options', 'DENY');
+      // Strict CSP for the app; file-byte responses set their own sandboxed policy.
+      if (!reply.hasHeader('content-security-policy')) reply.header('content-security-policy', ConsoleApi.APP_CSP);
       if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
       if (config.tls) reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
     });
@@ -374,10 +381,17 @@ export class ConsoleApi {
     api.get('/services/:sid/media/files/:id/bytes/:sub', { schema: { params: PIS }, logLevel: 'warn' }, async (request, reply) => {
       s.requireSession(request);
       const res = await this.clients.get(sid(request), MediaClient).bytes(pid(request), psub(request));
-      for (const h of ['content-type', 'content-length', 'content-disposition', 'etag']) {
+      // Same-origin proxy: never let non-raster content (SVG, HTML, PDF) execute or render here.
+      const type = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+      const inline = ConsoleApi.INLINE_TYPES.has(type);
+      reply.header('content-type', inline ? type : 'application/octet-stream');
+      const disposition = res.headers.get('content-disposition');
+      reply.header('content-disposition', inline && disposition ? disposition : `attachment; filename="${pid(request)}.bin"`);
+      for (const h of ['content-length', 'etag']) {
         const v = res.headers.get(h);
         if (v) reply.header(h, v);
       }
+      reply.header('content-security-policy', "default-src 'none'; sandbox");
       reply.header('cache-control', 'private, max-age=300');
       return reply.send(res.body ? /** @type {any} */ (await import('node:stream')).Readable.fromWeb(/** @type {any} */ (res.body)) : Buffer.alloc(0));
     });

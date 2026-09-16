@@ -35,7 +35,9 @@ const fake = createServer((req, res) => {
     if (p === '/v1/files' && req.method === 'GET') return json(200, { items: [{ id: 'f1', name: 'a.png' }], nextCursor: null });
     if (p === '/v1/files' && req.method === 'PUT') return json(201, { file: { id: 'f2', name: 'up.png', size: body.length } });
     if (p === '/v1/files/f1/urls') return json(200, { urls: { thumb: { url: `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}/files/f1/thumb?exp=1&sig=x` } } });
-    if (p === '/files/f1/thumb') return res.writeHead(200, { 'content-type': 'image/webp', 'content-length': '3' }).end('img');
+    if (p === '/files/f1/thumb') return res.writeHead(200, { 'content-type': 'image/webp', 'content-length': '3', 'content-disposition': 'inline; filename="a-thumb.webp"' }).end('img');
+    if (p === '/v1/files/f2/urls') return json(200, { urls: { original: { url: `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}/files/f2/original?exp=1&sig=x` } } });
+    if (p === '/files/f2/original') return res.writeHead(200, { 'content-type': 'image/svg+xml', 'content-disposition': 'inline; filename="evil.svg"' }).end('<svg onload="alert(1)"/>');
     if (p === '/v1/files/f1' && req.method === 'DELETE') return res.writeHead(204).end();
     if (p === '/v1/uploads') return json(201, { token: 't', uploadUrl: 'https://media/v1/uploads/t' });
     if (p === '/v1/users' && req.method === 'POST') return json(409, { error: { code: 'EMAIL_TAKEN', message: 'exists' } });
@@ -172,6 +174,13 @@ test('media: list, thumbnail proxy, streaming upload, delete, ticket', async () 
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers['content-type'], 'image/webp');
   assert.equal(res.body, 'img');
+  assert.match(String(res.headers['content-security-policy']), /sandbox/);
+  const svg = await t.app.inject({ url: '/api/services/media/media/files/f2/bytes/original', headers: { cookie } });
+  assert.equal(svg.statusCode, 200);
+  assert.equal(svg.headers['content-type'], 'application/octet-stream', 'non-raster types are neutralised');
+  assert.match(String(svg.headers['content-disposition']), /^attachment/);
+  const page = await t.app.inject('/');
+  assert.match(String(page.headers['content-security-policy']), /script-src 'self'/);
   seen.length = 0;
   res = await t.app.inject({ method: 'PUT', url: '/api/services/media/media/files?visibility=public&name=up.png', headers: { cookie, ...CSRF, 'content-type': 'image/png' }, payload: Buffer.alloc(1000, 1) });
   assert.equal(res.statusCode, 201, res.body);
