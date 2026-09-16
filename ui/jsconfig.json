@@ -8,8 +8,16 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowJs": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src/**/*.js", "src/**/*.svelte", "build/**/*.js"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*.js",
+    "src/**/*.svelte"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

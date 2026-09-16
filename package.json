@@ -18,7 +18,7 @@
     "build": "vite build",
     "admin": "node --disable-warning=ExperimentalWarning --env-file=.env scripts/admin.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
-    "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./ui/jsconfig.json"
+    "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./jsconfig.json"
   },
   "dependencies": {
     "@fastify/static": "10.1.3",
