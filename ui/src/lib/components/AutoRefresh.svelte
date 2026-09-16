@@ -9,13 +9,14 @@
   import { session } from '../session.svelte.js';
   import { t } from '../i18n.svelte.js';
   import { toasts } from '../toast.svelte.js';
+  import { visibility } from '../visibility.svelte.js';
   /** @type {{ sid: string, ontick: () => void }} */
   let { sid, ontick } = $props();
   const OPTIONS = [0, 15, 30, 60, 300];
   const svc = $derived(services.get(sid));
   const value = $derived(svc?.polling.enabled ? svc.polling.intervalSec : 0);
   let saving = $state(false);
-  let visible = $state(!document.hidden);
+  const visible = $derived(visibility.visible);
   let countdown = $state(0);
 
   /** @param {number} sec */
@@ -32,11 +33,6 @@
       toasts.ok(t('poll.saved'));
     } catch (err) { toasts.error(err); } finally { saving = false; }
   }
-  $effect(() => {
-    const onVis = () => { visible = !document.hidden; };
-    document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
-  });
   $effect(() => {
     if (!value || !visible) { countdown = 0; return; }
     countdown = value;

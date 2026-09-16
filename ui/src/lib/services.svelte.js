@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 import { api } from './api.js';
 
 /** @typedef {{ enabled: boolean, intervalSec: number }} Polling */
@@ -31,13 +32,15 @@ export class Services {
   async refreshOne(id) {
     const def = this.get(id);
     if (!def) return;
-    this.refreshing = { ...this.refreshing, [id]: true };
+    // Read-modify-write of reactive maps runs untracked: callers may sit inside an $effect, and
+    // tracking the read would make that effect depend on its own write (infinite loop).
+    untrack(() => { this.refreshing = { ...this.refreshing, [id]: true }; });
     try {
       const r = /** @type {Omit<ServiceOverview, keyof ServiceInfo>} */ (await api.get(`/services/${id}/status`));
       this.overview = { ...this.overview, [id]: { ...def, ...r } };
       this.refreshedAt = { ...this.refreshedAt, [id]: Date.now() };
     } finally {
-      this.refreshing = { ...this.refreshing, [id]: false };
+      untrack(() => { this.refreshing = { ...this.refreshing, [id]: false }; });
     }
   }
 
@@ -53,7 +56,8 @@ export class Services {
 
   /** Services never probed in this session (first paint of the overview). */
   async refreshMissing() {
-    await Promise.all(this.items.filter((s) => !this.overview[s.id]).map((s) => this.refreshOne(s.id).catch(() => {})));
+    const missing = untrack(() => this.items.filter((s) => !this.overview[s.id]));
+    await Promise.all(missing.map((s) => this.refreshOne(s.id).catch(() => {})));
   }
 
   /** @param {string} id */

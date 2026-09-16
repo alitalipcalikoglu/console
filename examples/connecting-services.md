@@ -18,7 +18,7 @@
 - `type`: `notify`, `auth`, `media` or `gateway`. Decides the screens.
 - `url`: bare origin the console calls. Private network addresses are fine and preferred.
 - `apiKeyEnv` / `metricsTokenEnv`: **names** of environment variables in `.env`, never the secret itself. Missing or short (< 32 chars) values stop the process at start.
-- `polling` (optional): `{ "enabled": true, "intervalSec": 30 }` makes the service's page refresh itself while open. Changed from the UI by admins; the console rewrites the file (atomic temp-file rename) and keeps every other field untouched. Allowed interval 5–3600 s.
+- `polling` (optional): `{ "enabled": true, "intervalSec": 30 }` makes the service's page, and its card on the overview, refresh at that interval while open and visible. Changed from the UI by admins; the console rewrites the file (atomic temp-file rename) and keeps every other field untouched. Allowed interval 5–3600 s.
 - Two instances of the same type show as tabs on that service's page.
 
 Validation errors are exact: `services[3].apiKeyEnv refers to MEDIA_US_API_KEY, which is not set`.

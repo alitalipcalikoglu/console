@@ -46,7 +46,7 @@ npm run typecheck
 
 | Area | See | Do (admin role) |
 |---|---|---|
-| Overview | health, readiness, latency and headline numbers of every service | refresh one service at a time (no global refresh, no polling) |
+| Overview | health, readiness, latency and headline numbers of every service; cards with auto-refresh enabled tick at their own interval | refresh one service at a time (no global refresh) |
 | Service pages | – | auto-refresh per service (Off / 15 s / 30 s / 1 min / 5 min), stored in `services.json` |
 | Notify | queue counters, messages by status, delivery errors, attempts | retry failed messages, send a test message from a template |
 | Auth | users, verification state, lockouts, sessions per device, audit trail | create user, disable/enable, delete, revoke one or all sessions, resend verification, send password reset |
@@ -68,7 +68,7 @@ npm run typecheck
 
 `type` selects the screens and endpoints; several instances of one type are allowed (tabs appear). `url` is the internal address the console calls; `publicUrl` is optional information for auth. The gateway needs `metricsTokenEnv` instead of an API key. The file is validated at startup with precise error messages. Changing connections means a restart (`pm2 reload console`).
 
-Each service may carry `"polling": { "enabled": false, "intervalSec": 30 }`: auto-refresh of that service's page in the UI. Admins change it from the page's app bar (Auto-refresh: Off / 15 s / 30 s / 1 min / 5 min); the console writes it back to `services.json` atomically, so the setting is shared by every admin and survives restarts. There is no global refresh and no polling on the overview; a timer runs only while the service's page is open and the tab is visible.
+Each service may carry `"polling": { "enabled": false, "intervalSec": 30 }`: auto-refresh of that service's page in the UI. Admins change it from the page's app bar (Auto-refresh: Off / 15 s / 30 s / 1 min / 5 min); the console writes it back to `services.json` atomically, so the setting is shared by every admin and survives restarts. There is no global refresh; each service polls at its own interval, on its own page and on the overview card, only while that page is open and the tab is visible.
 
 Every operation goes through the console's own typed API (`/api/services/:id/…`), which calls the service with the console's key. There is no generic proxy: an action exists in the console only if the service exposes it. Destructive actions ask for confirmation (deleting a user requires typing the email) and every write is recorded in the console's audit log with actor, target and IP.
 

@@ -5,6 +5,7 @@
   let { value, mode = 'relative' } = $props();
   const fmt = $derived(new Fmt(i18n.lang));
   let now = $state(Date.now());
+  $effect(() => { value; now = Date.now(); });
   $effect(() => { const id = setInterval(() => { now = Date.now(); }, 30_000); return () => clearInterval(id); });
 </script>
 
