@@ -111,7 +111,7 @@ test('AuditStore records and pages, filters by action prefix', () => {
 
 test('ServiceRegistry parses, resolves secrets, rejects broken files', () => {
   const r = testRegistry({ auth: 'http://10.0.0.2:3002/' });
-  assert.deepEqual(r.services.map((s) => s.id), ['notify', 'auth', 'media', 'gateway', 'audit', 'shortlink', 'flags']);
+  assert.deepEqual(r.services.map((s) => s.id), ['notify', 'auth', 'media', 'gateway', 'audit', 'shortlink', 'flags', 'scheduler']);
   assert.equal(r.get('auth')?.url, 'http://10.0.0.2:3002');
   assert.equal(r.get('auth')?.apiKey, servicesEnv.AUTH_API_KEY);
   assert.equal(r.get('auth')?.label, 'Auth (prod)');

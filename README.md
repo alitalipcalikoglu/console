@@ -1,6 +1,6 @@
 # console
 
-One installable web app to watch and operate the atc-web services: notify, auth, media, gateway, audit, shortlink and flags. Fastify backend-for-frontend plus a Svelte 5 progressive web app. Works on phones and desktops, light and dark, Turkish and English.
+One installable web app to watch and operate the atc-web services: notify, auth, media, gateway, audit, shortlink, flags and scheduler. Fastify backend-for-frontend plus a Svelte 5 progressive web app. Works on phones and desktops, light and dark, Turkish and English.
 
 The console depends on nothing else to run: its own administrator accounts, sessions, two-factor authentication and audit log live in its own SQLite database. Services are reached over HTTP with dedicated API keys; a service being down shows up as a red card, not as a broken console.
 
@@ -55,6 +55,7 @@ npm run typecheck
 | Audit | events pushed by every service with filters (outcome, action prefix, source, actor, target, request id, IP, time range), 24-hour statistics, event detail with metadata and hashes | verify the hash chain, export NDJSON/CSV (both recorded in the console log) |
 | Shortlink | links with status, clicks, tags; 7-day overview and most clicked; per-link statistics (per day, referrers, devices, recent clicks) and QR code | create links (slug, expiry, click limit, tags, 301/302), edit, disable/enable, delete, download the QR as PNG |
 | Flags | flags with kind, tags and per-environment state; environment versions and evaluation counts; per-flag history; evaluate for a given user with the reason | create flags, switch per environment, edit values, rollout percentage and targeting rules, copy between environments, archive, reshuffle, delete |
+| Scheduler | jobs with schedule, next and last run, tags; failures in the last 24 h and worker state; recent runs across jobs with status filter; per-job runs; run detail with every attempt | create jobs (cron with timezone and live preview, or one-shot; target URL, method, headers, JSON body, named bearer token, timeout, retry policy), edit (only changed fields are sent), pause/resume, run now, cancel queued or retrying runs, delete |
 | Console log | who did what in the console, filter by action prefix | – |
 | Admins | console accounts, roles, 2FA state, last login | add, change role, disable, set password, unlock, delete |
 | Account | own sessions | change password, enable/disable TOTP (QR code), sign out other sessions, theme, language |
@@ -69,7 +70,7 @@ npm run typecheck
 { "id": "media", "type": "media", "label": "Media (EU)", "url": "http://10.0.0.3:3003", "apiKeyEnv": "MEDIA_API_KEY" }
 ```
 
-`type` is one of `notify`, `auth`, `media`, `gateway`, `audit`, `shortlink`, `flags` and selects the screens and endpoints; several instances of one type are allowed (tabs appear). `url` is the internal address the console calls; `publicUrl` is optional information for auth. The gateway needs `metricsTokenEnv` instead of an API key. The file is validated at startup with precise error messages. Changing connections means a restart (`pm2 reload console`).
+`type` is one of `notify`, `auth`, `media`, `gateway`, `audit`, `shortlink`, `flags`, `scheduler` and selects the screens and endpoints; several instances of one type are allowed (tabs appear). `url` is the internal address the console calls; `publicUrl` is optional information for auth. The gateway needs `metricsTokenEnv` instead of an API key. The file is validated at startup with precise error messages. Changing connections means a restart (`pm2 reload console`).
 
 Each service may carry `"polling": { "enabled": false, "intervalSec": 30 }`: auto-refresh of that service's page in the UI. Admins change it from the page's app bar (Auto-refresh: Off / 15 s / 30 s / 1 min / 5 min); the console writes it back to `services.json` atomically, so the setting is shared by every admin and survives restarts. There is no global refresh; each service polls at its own interval, on its own page and on the overview card, only while that page is open and the tab is visible.
 

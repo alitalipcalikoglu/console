@@ -22,6 +22,9 @@
   import LinkDetail from './pages/shortlink/LinkDetail.svelte';
   import Flags from './pages/flags/Flags.svelte';
   import FlagDetail from './pages/flags/FlagDetail.svelte';
+  import Jobs from './pages/scheduler/Jobs.svelte';
+  import JobDetail from './pages/scheduler/JobDetail.svelte';
+  import RunDetail from './pages/scheduler/RunDetail.svelte';
   import Audit from './pages/Audit.svelte';
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
@@ -71,6 +74,9 @@
       {:else if match.pattern === '/shortlink/:sid/links/:id'}<LinkDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/flags/:sid'}<Flags sid={match.params.sid} />
       {:else if match.pattern === '/flags/:sid/flags/:id'}<FlagDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/scheduler/:sid'}<Jobs sid={match.params.sid} />
+      {:else if match.pattern === '/scheduler/:sid/jobs/:id'}<JobDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/scheduler/:sid/runs/:id'}<RunDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
       {:else if match.pattern === '/account'}<Account />

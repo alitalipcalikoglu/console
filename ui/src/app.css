@@ -187,6 +187,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 @media (max-width: 900px) { .seg { background: linear-gradient(to left, color-mix(in srgb, var(--text) 12%, transparent), transparent 14px) right / 100% 100% no-repeat, var(--surface-2); } }
 .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; color: var(--text-2); cursor: pointer; font-weight: 550; font-size: .875rem; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+/* Preformatted result block (JSON values, response bodies) inside cards and definition lists. */
+.result { margin: 0; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); font-family: var(--mono); font-size: .8rem; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: .9rem; }
 .kv dt { color: var(--text-3); } .kv dd { margin: 0; min-width: 0; word-break: break-word; }
 .dropzone { border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 28px; text-align: center; color: var(--text-2); transition: border-color .12s, background .12s; }

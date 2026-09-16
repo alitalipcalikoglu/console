@@ -4,6 +4,7 @@ import { FlagsClient } from './flags-client.js';
 import { GatewayClient } from './gateway-client.js';
 import { MediaClient } from './media-client.js';
 import { NotifyClient } from './notify-client.js';
+import { SchedulerClient } from './scheduler-client.js';
 import { ShortlinkClient } from './shortlink-client.js';
 import { ServiceClient, ServiceError } from './client.js';
 
@@ -36,6 +37,7 @@ export class ServiceClients {
       case 'audit': return new AuditClient(def, o);
       case 'shortlink': return new ShortlinkClient(def, o);
       case 'flags': return new FlagsClient(def, o);
+      case 'scheduler': return new SchedulerClient(def, o);
       default: throw new Error(`unknown service type ${def.type}`);
     }
   }

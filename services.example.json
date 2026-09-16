@@ -6,6 +6,7 @@
     { "id": "gateway", "type": "gateway", "label": "Gateway", "url": "http://10.0.0.4:3000", "metricsTokenEnv": "GATEWAY_METRICS_TOKEN" },
     { "id": "audit", "type": "audit", "label": "Audit", "url": "http://10.0.0.5:3005", "apiKeyEnv": "AUDIT_API_KEY", "polling": { "enabled": true, "intervalSec": 60 } },
     { "id": "shortlink", "type": "shortlink", "label": "Shortlink", "url": "http://10.0.0.6:3006", "apiKeyEnv": "SHORTLINK_API_KEY" },
-    { "id": "flags", "type": "flags", "label": "Flags", "url": "http://10.0.0.7:3007", "apiKeyEnv": "FLAGS_API_KEY" }
+    { "id": "flags", "type": "flags", "label": "Flags", "url": "http://10.0.0.7:3007", "apiKeyEnv": "FLAGS_API_KEY" },
+    { "id": "scheduler", "type": "scheduler", "label": "Scheduler", "url": "http://10.0.0.8:3008", "apiKeyEnv": "SCHEDULER_API_KEY" }
   ]
 }

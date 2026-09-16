@@ -170,7 +170,6 @@
 <Confirm open={confirm === 'delete'} title={t('fl.delete')} message={t('fl.deleteDesc')} danger typeWord={f?.key} confirmLabel={t('common.delete')} busy={busy.flag} onconfirm={() => run('flag', async () => { await api.delete(base); router.go(`/flags/${sid}`); }, t('fl.deleted'))} oncancel={() => { confirm = null; }} />
 
 <style>
-  .result { margin: 0; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius-sm); font-family: var(--mono); font-size: .85rem; white-space: pre-wrap; word-break: break-word; }
   .linkish { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
   .linkish:hover { text-decoration: underline; }
 </style>

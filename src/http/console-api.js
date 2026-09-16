@@ -8,6 +8,7 @@ import { ConsoleError } from '../domain/errors.js';
 import { AuditClient } from '../services/audit-client.js';
 import { AuthClient } from '../services/auth-client.js';
 import { FlagsClient } from '../services/flags-client.js';
+import { SchedulerClient } from '../services/scheduler-client.js';
 import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
@@ -69,6 +70,24 @@ class Schemas {
     expiresAt: { type: 'string', maxLength: 40, nullable: true }, maxClicks: { type: 'integer', minimum: 1, maximum: 1000000000, nullable: true },
     tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 40 } }, note: { type: 'string', maxLength: 500, nullable: true },
   };
+  static schedulerQuery = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      q: { type: 'string', maxLength: 120 }, tag: { type: 'string', maxLength: 40 }, enabled: { type: 'string', enum: ['true', 'false'] },
+      status: { type: 'string', enum: ['pending', 'running', 'retrying', 'succeeded', 'failed', 'skipped', 'cancelled'] }, job: { type: 'string', maxLength: 80 },
+      limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' }, cursor: { type: 'string', maxLength: 80 }, before: { type: 'string', pattern: '^[1-9][0-9]{0,15}$' },
+      cron: { type: 'string', maxLength: 100 }, timezone: { type: 'string', maxLength: 64 }, count: { type: 'string', pattern: '^([1-9]|[1-4][0-9]|50)$' },
+    },
+  };
+  static schedulerFields = {
+    description: { type: 'string', maxLength: 500 }, tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 40 } }, enabled: { type: 'boolean' },
+    schedule: { type: 'object', additionalProperties: false, properties: { cron: { type: 'string', minLength: 1, maxLength: 100 }, timezone: { type: 'string', minLength: 1, maxLength: 64 }, at: { type: 'string', minLength: 20, maxLength: 40 } } },
+    target: { type: 'object', additionalProperties: false, required: ['url'], properties: { url: { type: 'string', minLength: 8, maxLength: 2048 }, method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }, headers: { type: 'object', maxProperties: 10, additionalProperties: { type: 'string', maxLength: 1024 }, propertyNames: { maxLength: 64 } }, body: {} } },
+    targetKey: { type: ['string', 'null'], maxLength: 64 }, timeoutMs: { type: 'integer', minimum: 1000, maximum: 3600000 },
+    retry: { type: 'object', additionalProperties: false, properties: { max: { type: 'integer', minimum: 0, maximum: 1000 }, backoffSec: { type: 'integer', minimum: 1, maximum: 86400 } } },
+  };
+  static schedulerCreate = Schemas.body(['name', 'schedule', 'target'], { name: { type: 'string', pattern: '^[a-z0-9]+([.\\-_][a-z0-9]+)*$', maxLength: 80 }, ...Schemas.schedulerFields });
+  static schedulerPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: Schemas.schedulerFields };
   static flagsQuery = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -613,6 +632,55 @@ export class ConsoleApi {
       return out;
     });
     api.post('/services/:sid/flags/evaluate', { schema: { params: P, body: Schemas.flagsEvaluate } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), FlagsClient).evaluate(/** @type {any} */ (request.body)); });
+
+    // ---------------------------------------------------------------- scheduler
+    const JQ = Schemas.schedulerQuery;
+    const sched = (/** @type {FastifyRequest} */ r) => this.clients.get(sid(r), SchedulerClient);
+    api.get('/services/:sid/scheduler/stats', { schema: { params: P } }, async (request) => { s.requireSession(request); return sched(request).stats(); });
+    api.get('/services/:sid/scheduler/target-keys', { schema: { params: P } }, async (request) => { s.requireSession(request); return sched(request).targetKeys(); });
+    api.get('/services/:sid/scheduler/timezones', { schema: { params: P } }, async (request) => { s.requireSession(request); return sched(request).timezones(); });
+    api.get('/services/:sid/scheduler/preview', { schema: { params: P, querystring: JQ } }, async (request) => { s.requireSession(request); const q = query(request); return sched(request).preview({ cron: q.cron ?? '', timezone: q.timezone, count: num(q.count) }); });
+    api.get('/services/:sid/scheduler/jobs', { schema: { params: P, querystring: JQ } }, async (request) => { s.requireSession(request); return sched(request).listJobs(query(request)); });
+    api.post('/services/:sid/scheduler/jobs', { schema: { params: P, body: Schemas.schedulerCreate } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const body = /** @type {any} */ (request.body);
+      const out = await sched(request).createJob(body);
+      record(request, 'scheduler.job.create', body.name, { service: sid(request), schedule: body.schedule, url: body.target.url });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/scheduler/jobs/:id', { schema: { params: PI } }, async (request) => {
+      s.requireSession(request);
+      const c = sched(request);
+      const [job, runs] = await Promise.all([c.getJob(pid(request)), c.runs(pid(request), { limit: 20 })]);
+      return { .../** @type {any} */ (job), runs: /** @type {any} */ (runs).items, runsNextBefore: /** @type {any} */ (runs).nextBefore };
+    });
+    api.patch('/services/:sid/scheduler/jobs/:id', { schema: { params: PI, body: Schemas.schedulerPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await sched(request).patchJob(pid(request), /** @type {any} */ (request.body));
+      record(request, 'scheduler.job.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/scheduler/jobs/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await sched(request).deleteJob(pid(request));
+      record(request, 'scheduler.job.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.post('/services/:sid/scheduler/jobs/:id/run', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const out = await sched(request).runJob(pid(request));
+      record(request, 'scheduler.job.run', pid(request), { service: sid(request), run: /** @type {any} */ (out)?.run?.id ?? null });
+      return reply.code(202).send(out);
+    });
+    api.get('/services/:sid/scheduler/jobs/:id/runs', { schema: { params: PI, querystring: JQ } }, async (request) => { s.requireSession(request); const q = query(request); return sched(request).runs(pid(request), { status: q.status, limit: num(q.limit), before: q.before }); });
+    api.get('/services/:sid/scheduler/runs', { schema: { params: P, querystring: JQ } }, async (request) => { s.requireSession(request); const q = query(request); return sched(request).runs(q.job ?? null, { status: q.status, limit: num(q.limit), before: q.before }); });
+    api.get('/services/:sid/scheduler/runs/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return sched(request).getRun(pid(request)); });
+    api.post('/services/:sid/scheduler/runs/:id/cancel', { schema: { params: PI } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await sched(request).cancelRun(pid(request));
+      record(request, 'scheduler.run.cancel', pid(request), { service: sid(request) });
+      return out;
+    });
 
     return api;
   }
