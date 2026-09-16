@@ -10,7 +10,7 @@
   import { poller } from '../lib/poller.svelte.js';
   const fmt = $derived(new Fmt(i18n.lang));
   /** @type {Record<string, string>} */
-  const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history' };
+  const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link' };
   // First visit probes only the services never seen in this session; afterwards each card refreshes on demand.
   $effect(() => { if (services.loaded) untrack(() => services.refreshMissing()); });
   /**
@@ -39,6 +39,7 @@
       case 'media': return [[t('media.files'), fmt.int(m.files)], [t('media.stored'), fmt.bytes(m.storedBytes)], [t('media.downloads'), fmt.int(m.downloads)]];
       case 'gateway': { const routes = Object.values(m.routes ?? {}); const req = routes.reduce((a, /** @type {any} */ r) => a + Object.values(r.requests).reduce((x, y) => x + Number(y), 0), 0); return [[t('gateway.requests'), fmt.int(req)], [t('gateway.routes'), fmt.int(routes.length)], [t('gateway.rateLimited'), fmt.int(m.rejected?.rate_limited ?? 0)]]; }
       case 'audit': return [[t('ev.totalEvents'), fmt.int(m.total)], [t('ev.lastHour'), fmt.int(m.lastHour)], [t('ev.headSeq'), fmt.int(m.headSeq)], [t('ev.dbSize'), fmt.bytes(m.dbBytes)]];
+      case 'shortlink': return [[t('sl.activeLinks'), fmt.int(m.activeLinks)], [t('sl.clicks'), fmt.int(m.clicks)], [t('sl.clicksLastHour'), fmt.int(m.clicksLastHour)], [t('sl.inactiveLinks'), fmt.int(m.inactiveLinks)]];
       default: return [];
     }
   }

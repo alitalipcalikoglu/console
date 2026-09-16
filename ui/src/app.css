@@ -174,6 +174,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .seg { display: inline-flex; padding: 3px; background: var(--surface-2); border-radius: var(--radius-sm); gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; flex: 0 1 auto; }
 .seg::-webkit-scrollbar { display: none; }
 .seg button { flex: none; }
+/* Mobile: segmented controls may scroll; the same right-edge fade as tables hints at it. */
+@media (max-width: 900px) { .seg { background: linear-gradient(to left, color-mix(in srgb, var(--text) 12%, transparent), transparent 14px) right / 100% 100% no-repeat, var(--surface-2); } }
 .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; color: var(--text-2); cursor: pointer; font-weight: 550; font-size: .875rem; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: .9rem; }

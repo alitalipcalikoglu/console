@@ -11,7 +11,7 @@
   /** @type {{ children: import('svelte').Snippet }} */
   let { children } = $props();
   /** @type {Record<string, string>} */
-  const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history' };
+  const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link' };
   const current = $derived(router.path);
   /** @param {string} href */
   const active = (href) => (href === '/' ? current === '/' : current === href || current.startsWith(`${href}/`));
