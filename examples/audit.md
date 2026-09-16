@@ -1,6 +1,6 @@
-# Audit log
+# Console log
 
-**Audit** page: every action performed through the console, newest first, with actor email, action, target, details and IP.
+**Console log** page (the console's own audit trail, not the audit service): every action performed through the console, newest first, with actor email, action, target, details and IP.
 
 ## What is recorded
 
