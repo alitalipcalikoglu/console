@@ -13,6 +13,7 @@ Walkthroughs for every feature of the admin console. Screens are described as th
 | [Operating media](media.md) | Uploading, previews, visibility, signed links, delete and restore, tickets |
 | [Watching the gateway](gateway.md) | Upstream health per route, traffic and latency table |
 | [Operating the audit service](audit-service.md) | Filtering events, statistics, event detail, verifying the chain, exporting |
+| [Operating shortlink](shortlink.md) | Creating and editing links, statistics, QR codes, disabling and deleting |
 | [Console log](audit.md) | What the console records about its own admins, filtering, retention |
 | [Installing as an app and updates](pwa.md) | Install on phone/desktop, offline behaviour, update prompt, theme and language |
 | [Operations](operations.md) | Health, environment, PM2, Docker, TLS, backups |
