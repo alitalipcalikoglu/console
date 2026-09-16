@@ -139,3 +139,38 @@ test('ServiceRegistry parses, resolves secrets, rejects broken files', () => {
   const noMetrics = ServiceRegistry.parse({ services: [{ id: 'gw', type: 'gateway', url: 'http://h:1' }] }, {});
   assert.equal(noMetrics.describe()[0].hasMetrics, false);
 });
+
+test('ServiceRegistry polling setting: defaults, validation, update and atomic save round-trip', async () => {
+  const { mkdtempSync, readFileSync, writeFileSync, rmSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const dir = mkdtempSync(join(tmpdir(), 'console-registry-'));
+  try {
+    const path = join(dir, 'services.json');
+    const doc = /** @type {any} */ (servicesDoc());
+    doc.services[0].polling = { enabled: true, intervalSec: 15 };
+    doc.services[1].extraNote = 'kept as-is';
+    writeFileSync(path, JSON.stringify(doc));
+    const r = ServiceRegistry.load(path, servicesEnv);
+    assert.deepEqual(r.get('notify')?.polling, { enabled: true, intervalSec: 15 });
+    assert.deepEqual(r.get('auth')?.polling, { enabled: false, intervalSec: 30 }, 'default when absent');
+    assert.deepEqual(r.describe()[0].polling, { enabled: true, intervalSec: 15 });
+    r.updatePolling('auth', { enabled: true, intervalSec: 60 });
+    assert.deepEqual(r.get('auth')?.polling, { enabled: true, intervalSec: 60 });
+    r.save();
+    const written = JSON.parse(readFileSync(path, 'utf8'));
+    assert.deepEqual(written.services[1].polling, { enabled: true, intervalSec: 60 });
+    assert.equal(written.services[1].extraNote, 'kept as-is', 'unknown fields survive a save');
+    assert.equal(written.services[1].apiKeyEnv, 'AUTH_API_KEY', 'secrets stay as env names');
+    assert.equal(JSON.stringify(written).includes(servicesEnv.AUTH_API_KEY), false, 'no secret ever written');
+    const reloaded = ServiceRegistry.load(path, servicesEnv);
+    assert.deepEqual(reloaded.get('auth')?.polling, { enabled: true, intervalSec: 60 });
+    assert.throws(() => r.updatePolling('auth', { enabled: true, intervalSec: 1 }), ConfigError);
+    assert.throws(() => r.updatePolling('auth', { enabled: 'yes', intervalSec: 30 }), ConfigError);
+    assert.throws(() => r.updatePolling('nope', { enabled: true, intervalSec: 30 }), ConfigError);
+    assert.throws(() => ServiceRegistry.parse({ services: [{ id: 'a', type: 'gateway', url: 'http://h:1', polling: { intervalSec: 99999 } }] }, {}), ConfigError);
+    assert.throws(() => new ServiceRegistry([]).save(), /not loaded from a file/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

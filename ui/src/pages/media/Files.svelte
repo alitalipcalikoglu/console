@@ -9,6 +9,7 @@
   import Time from '../../lib/components/Time.svelte';
   import LoadMore from '../../lib/components/LoadMore.svelte';
   import ServiceTabs from '../../lib/components/ServiceTabs.svelte';
+  import AutoRefresh from '../../lib/components/AutoRefresh.svelte';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { router } from '../../lib/router.svelte.js';
@@ -64,6 +65,7 @@
 
 <Page title={svc?.label ?? t('media.title')} desc={t('media.desc')}>
   {#snippet actions()}
+    <AutoRefresh {sid} ontick={() => { list.load(); summary.load(); }} />
     <div class="seg"><button aria-pressed={view === 'grid'} onclick={() => { view = 'grid'; }} title={t('media.grid')}><Icon name="grid" size={14} /></button><button aria-pressed={view === 'list'} onclick={() => { view = 'list'; }} title={t('media.list')}><Icon name="list" size={14} /></button></div>
     <button class="btn icon" onclick={() => { list.load(); summary.load(); }} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>
   {/snippet}

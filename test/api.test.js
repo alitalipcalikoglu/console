@@ -212,3 +212,34 @@ test('admin management over HTTP', async () => {
   res = await t.app.inject({ url: '/api/me/sessions', headers: { cookie } });
   assert.ok(res.json().items.some((/** @type {any} */ s) => s.current));
 });
+
+test('PATCH /api/services/:sid/settings writes polling to services.json, audited, admin only', async () => {
+  const { mkdtempSync, readFileSync, writeFileSync, rmSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const { ServiceRegistry } = await import('../src/services/registry.js');
+  const { servicesDoc, servicesEnv } = await import('./helpers.js');
+  const dir = mkdtempSync(join(tmpdir(), 'console-settings-'));
+  try {
+    const path = join(dir, 'services.json');
+    writeFileSync(path, JSON.stringify(servicesDoc({ notify: origin })));
+    t.clients.registry = ServiceRegistry.load(path, servicesEnv);
+    const { cookie } = await signIn(t);
+    const viewer = await signIn(t, { email: 'viewer2@console.local', role: 'viewer' });
+    let res = await t.app.inject({ method: 'PATCH', url: '/api/services/notify/settings', headers: { cookie: viewer.cookie, ...CSRF }, payload: { polling: { enabled: true, intervalSec: 30 } } });
+    assert.equal(res.statusCode, 403);
+    res = await t.app.inject({ method: 'PATCH', url: '/api/services/notify/settings', headers: { cookie, ...CSRF }, payload: { polling: { enabled: true, intervalSec: 2 } } });
+    assert.equal(res.statusCode, 400);
+    res = await t.app.inject({ method: 'PATCH', url: '/api/services/notify/settings', headers: { cookie, ...CSRF }, payload: { polling: { enabled: true, intervalSec: 60 } } });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.deepEqual(res.json().service.polling, { enabled: true, intervalSec: 60 });
+    assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).services[0].polling, { enabled: true, intervalSec: 60 });
+    assert.deepEqual((await t.app.inject({ url: '/api/services', headers: { cookie } })).json().items[0].polling, { enabled: true, intervalSec: 60 });
+    assert.equal((await t.app.inject({ method: 'PATCH', url: '/api/services/nope/settings', headers: { cookie, ...CSRF }, payload: { polling: { enabled: false, intervalSec: 30 } } })).statusCode, 404);
+    const audit = await t.app.inject({ url: '/api/audit?action=service.', headers: { cookie } });
+    assert.equal(audit.json().items[0].action, 'service.settings.update');
+    assert.equal(audit.json().items[0].target, 'notify');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

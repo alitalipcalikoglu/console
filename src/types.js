@@ -80,6 +80,7 @@
  * @property {string|null} metricsToken
  * @property {string|null} publicUrl  Browser-facing origin, if different.
  * @property {string} label
+ * @property {{ enabled: boolean, intervalSec: number }} polling  Auto-refresh of the service's own page in the UI.
  */
 
 /** @typedef {import('fastify').FastifyBaseLogger} Logger */

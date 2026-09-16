@@ -12,6 +12,7 @@
 | `notify.` | `message.retry`, `message.send` (template, recipients) |
 | `auth.` | `user.create`, `user.update`, `user.delete`, `user.sessions.revoke_all`, `user.session.revoke`, `user.resend_verification`, `user.password_reset_email` |
 | `media.` | `file.upload` (name, size), `file.update`, `file.delete`, `file.restore`, `ticket.create` |
+| `service.` | `settings.update` (auto-refresh change, with the new `polling` value) |
 
 Reads are not recorded; writes always are, including failed attempts to sign in.
 

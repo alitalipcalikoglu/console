@@ -288,6 +288,17 @@ export class ConsoleApi {
     // ---------------------------------------------------------------- services: overview
     api.get('/services', async (request) => { s.requireSession(request); return { items: this.clients.registry.describe() }; });
     api.get('/services/overview', async (request) => { s.requireSession(request); return { items: await this.clients.overview() }; });
+    api.patch('/services/:sid/settings', { schema: { params: Schemas.serviceParams, body: Schemas.body(['polling'], { polling: Schemas.body(['enabled', 'intervalSec'], { enabled: { type: 'boolean' }, intervalSec: { type: 'integer', minimum: 5, maximum: 3600 } }) }) } }, async (request) => {
+      s.requireAdmin(request);
+      const id = /** @type {{ sid: string }} */ (request.params).sid;
+      const registry = this.clients.registry;
+      if (!registry.get(id)) throw new ConsoleError('NOT_FOUND', `unknown service "${id}"`);
+      const polling = /** @type {{ polling: { enabled: boolean, intervalSec: number } }} */ (request.body).polling;
+      registry.updatePolling(id, polling);
+      registry.save();
+      record(request, 'service.settings.update', id, { polling });
+      return { service: registry.describe().find((x) => x.id === id) };
+    });
     api.get('/services/:sid/status', { schema: { params: Schemas.serviceParams } }, async (request) => {
       s.requireSession(request);
       const c = this.clients.any(/** @type {{ sid: string }} */ (request.params).sid);

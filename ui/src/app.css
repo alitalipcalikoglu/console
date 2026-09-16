@@ -127,7 +127,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .nav .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
 .nav .dot.ok { background: var(--ok); } .nav .dot.danger { background: var(--danger); } .nav .dot.warn { background: var(--warn); }
 .main { min-width: 0; display: flex; flex-direction: column; }
-.header { position: sticky; top: 0; z-index: 5; min-height: var(--header-h); display: flex; align-items: center; gap: 10px; padding: 6px 20px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+.header { position: sticky; top: 0; z-index: 5; min-height: var(--header-h); display: flex; align-items: center; gap: 10px; padding: 6px 20px; flex-wrap: wrap; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
 @media (max-width: 900px) { .header { padding: 6px 12px; } }
 .content { padding: 20px; max-width: 1280px; width: 100%; margin: 0 auto; }
 .bottom-nav { display: none; }

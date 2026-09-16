@@ -45,7 +45,7 @@
       </div>
       {#if !pwa.online}<span class="badge warn"><Icon name="wifiOff" size={12} /> {t('common.offline')}</span>{/if}
       {#if session.admin?.role === 'viewer'}<span class="badge plain hide-mobile" title={t('common.viewerNote')}>{t('admins.viewer')}</span>{/if}
-      {#if page.actions}<div class="page-actions">{@render page.actions()}</div>{/if}
+      {#if page.actions}<div class="page-actions many">{@render page.actions()}</div>{/if}
       <span class="divider hide-mobile"></span>
       <button class="btn ghost icon hide-mobile" onclick={() => theme.toggle()} aria-label={t('account.theme')} title={t('account.theme')}><Icon name={theme.mode === 'dark' ? 'sun' : 'moon'} /></button>
       <button class="btn ghost icon hide-mobile" onclick={() => session.logout().then(() => router.go('/login'))} aria-label={t('account.logout')} title={t('account.logout')}><Icon name="logout" /></button>
@@ -67,5 +67,9 @@
   .page-actions::-webkit-scrollbar { display: none; }
   .divider { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
   @media (min-width: 901px) { .hide-desktop { display: none; } }
-  @media (max-width: 900px) { .hide-mobile { display: none; } .page-desc { display: none; } .page-actions { max-width: 60%; } }
+  @media (max-width: 900px) {
+    .hide-mobile { display: none; } .page-desc { display: none; }
+    .page-actions { max-width: none; overflow: visible; flex-wrap: wrap; justify-content: flex-end; }
+    .page-actions.many { flex: 1 1 100%; }
+  }
 </style>

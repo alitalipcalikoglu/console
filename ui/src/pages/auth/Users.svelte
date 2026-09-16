@@ -10,6 +10,7 @@
   import LoadMore from '../../lib/components/LoadMore.svelte';
   import ServiceTabs from '../../lib/components/ServiceTabs.svelte';
   import Dialog from '../../lib/components/Dialog.svelte';
+  import AutoRefresh from '../../lib/components/AutoRefresh.svelte';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { router } from '../../lib/router.svelte.js';
@@ -59,6 +60,7 @@
 
 <Page title={svc?.label ?? t('auth.title')} desc={t('auth.desc')}>
   {#snippet actions()}
+    <AutoRefresh {sid} ontick={() => { list.load(); summary.load(); }} />
     {#if session.isAdmin}<button class="btn primary" onclick={() => { createOpen = true; }}><Icon name="plus" size={16} /> {t('auth.createUser')}</button>{/if}
     <button class="btn icon" onclick={() => { list.load(); summary.load(); }} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>
   {/snippet}

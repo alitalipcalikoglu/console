@@ -10,6 +10,7 @@
   import LoadMore from '../../lib/components/LoadMore.svelte';
   import ServiceTabs from '../../lib/components/ServiceTabs.svelte';
   import Dialog from '../../lib/components/Dialog.svelte';
+  import AutoRefresh from '../../lib/components/AutoRefresh.svelte';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { router } from '../../lib/router.svelte.js';
@@ -93,6 +94,7 @@
 
 <Page title={svc?.label ?? t('notify.title')} desc={t('notify.desc')}>
   {#snippet actions()}
+    <AutoRefresh {sid} ontick={() => { list.load(); summary.load(); }} />
     {#if session.isAdmin}<button class="btn primary" onclick={openSend}><Icon name="mail" size={16} /> {t('notify.send')}</button>{/if}
     <button class="btn icon" onclick={() => { list.load(); summary.load(); }} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>
   {/snippet}

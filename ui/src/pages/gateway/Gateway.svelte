@@ -5,6 +5,7 @@
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import ErrorBox from '../../lib/components/ErrorBox.svelte';
   import ServiceTabs from '../../lib/components/ServiceTabs.svelte';
+  import AutoRefresh from '../../lib/components/AutoRefresh.svelte';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { services } from '../../lib/services.svelte.js';
@@ -25,7 +26,7 @@
 </script>
 
 <Page title={svc?.label ?? t('gateway.title')} desc={t('gateway.desc')}>
-  {#snippet actions()}<button class="btn icon" onclick={() => res.load()} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
+  {#snippet actions()}<AutoRefresh {sid} ontick={() => res.load()} /><button class="btn icon" onclick={() => res.load()} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
   <ServiceTabs type="gateway" {sid} />
   {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} />
   {:else if !d}<Skeleton rows={5} />

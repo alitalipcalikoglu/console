@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { ConfigError } from '../config.js';
 
 /** @typedef {import('../types.js').ServiceDef} ServiceDef */
@@ -6,13 +6,24 @@ import { ConfigError } from '../config.js';
 
 const TYPES = new Set(['notify', 'auth', 'media', 'gateway']);
 
-/** Loads and validates services.json; resolves secrets from the environment. */
+/**
+ * Loads and validates services.json; resolves secrets from the environment. Keeps the raw
+ * document so non-secret settings (auto-refresh) can be written back without losing fields.
+ */
 export class ServiceRegistry {
-  /** @param {ServiceDef[]} services */
-  constructor(services) {
+  static POLL_MIN_SEC = 5;
+  static POLL_MAX_SEC = 3600;
+
+  /**
+   * @param {ServiceDef[]} services
+   * @param {{ raw?: any, path?: string|null }} [o]
+   */
+  constructor(services, { raw = null, path = null } = {}) {
     this.services = services;
     /** @type {Map<string, ServiceDef>} */
     this.byId = new Map(services.map((s) => [s.id, s]));
+    this.raw = raw ?? { services: services.map((s) => ({ id: s.id, type: s.type, url: s.url })) };
+    this.path = path;
   }
 
   /**
@@ -32,20 +43,21 @@ export class ServiceRegistry {
     } catch (err) {
       throw new ConfigError(`services file is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
     }
-    return ServiceRegistry.parse(doc, env);
+    return ServiceRegistry.parse(doc, env, path);
   }
 
   /**
    * @param {unknown} doc
    * @param {NodeJS.ProcessEnv} env
+   * @param {string|null} [path]
    */
-  static parse(doc, env) {
+  static parse(doc, env, path = null) {
     if (typeof doc !== 'object' || doc === null || !Array.isArray(/** @type {any} */ (doc).services)) throw new ConfigError('services file must be an object with a "services" array');
     const list = /** @type {unknown[]} */ (/** @type {any} */ (doc).services);
     if (list.length === 0) throw new ConfigError('services must contain at least one service');
     const services = list.map((item, i) => ServiceRegistry.#service(item, `services[${i}]`, env));
     if (new Set(services.map((s) => s.id)).size !== services.length) throw new ConfigError('service ids must be unique');
-    return new ServiceRegistry(services);
+    return new ServiceRegistry(services, { raw: doc, path });
   }
 
   /**
@@ -72,7 +84,51 @@ export class ServiceRegistry {
       if (o.apiKeyEnv === undefined) throw new ConfigError(`${where}.apiKeyEnv is required for type "${type}"`);
       apiKey = ServiceRegistry.#secret(o.apiKeyEnv, `${where}.apiKeyEnv`, env);
     }
-    return { id, type: /** @type {ServiceType} */ (type), url, apiKey, metricsToken, publicUrl, label };
+    return { id, type: /** @type {ServiceType} */ (type), url, apiKey, metricsToken, publicUrl, label, polling: ServiceRegistry.parsePolling(o.polling, `${where}.polling`) };
+  }
+
+  /**
+   * @param {unknown} v
+   * @param {string} where
+   * @returns {{ enabled: boolean, intervalSec: number }}
+   */
+  static parsePolling(v, where) {
+    if (v === undefined || v === null) return { enabled: false, intervalSec: 30 };
+    if (typeof v !== 'object' || Array.isArray(v)) throw new ConfigError(`${where} must be an object`);
+    const o = /** @type {Record<string, unknown>} */ (v);
+    const enabled = o.enabled === undefined ? false : o.enabled;
+    if (typeof enabled !== 'boolean') throw new ConfigError(`${where}.enabled must be true or false`);
+    const intervalSec = o.intervalSec === undefined ? 30 : o.intervalSec;
+    if (typeof intervalSec !== 'number' || !Number.isInteger(intervalSec) || intervalSec < ServiceRegistry.POLL_MIN_SEC || intervalSec > ServiceRegistry.POLL_MAX_SEC) {
+      throw new ConfigError(`${where}.intervalSec must be an integer between ${ServiceRegistry.POLL_MIN_SEC} and ${ServiceRegistry.POLL_MAX_SEC}`);
+    }
+    return { enabled, intervalSec };
+  }
+
+  /**
+   * Change a service's auto-refresh setting in memory and in the raw document.
+   * @param {string} id
+   * @param {unknown} polling
+   * @returns {ServiceDef}
+   */
+  updatePolling(id, polling) {
+    const def = this.byId.get(id);
+    if (!def) throw new ConfigError(`unknown service "${id}"`);
+    const parsed = ServiceRegistry.parsePolling(polling, 'polling');
+    const updated = { ...def, polling: parsed };
+    this.services = this.services.map((s) => (s.id === id ? updated : s));
+    this.byId.set(id, updated);
+    const entry = /** @type {any[]} */ (this.raw.services).find((s) => s && s.id === id);
+    if (entry) entry.polling = parsed;
+    return updated;
+  }
+
+  /** Write the raw document back to disk atomically (temp file + rename). Secrets are never in it. */
+  save() {
+    if (!this.path) throw new Error('registry was not loaded from a file');
+    const tmp = `${this.path}.${process.pid}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(this.raw, null, 2)}\n`, { mode: 0o600 });
+    renameSync(tmp, this.path);
   }
 
   /**
@@ -133,6 +189,6 @@ export class ServiceRegistry {
 
   /** Public description without secrets. */
   describe() {
-    return this.services.map((s) => ({ id: s.id, type: s.type, label: s.label, url: s.url, publicUrl: s.publicUrl, hasMetrics: s.type !== 'gateway' || s.metricsToken !== null }));
+    return this.services.map((s) => ({ id: s.id, type: s.type, label: s.label, url: s.url, publicUrl: s.publicUrl, hasMetrics: s.type !== 'gateway' || s.metricsToken !== null, polling: s.polling }));
   }
 }

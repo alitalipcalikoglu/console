@@ -1,6 +1,6 @@
 {
   "services": [
-    { "id": "notify",  "type": "notify",  "label": "Notify",  "url": "http://10.0.0.1:3001", "apiKeyEnv": "NOTIFY_API_KEY" },
+    { "id": "notify",  "type": "notify",  "label": "Notify",  "url": "http://10.0.0.1:3001", "apiKeyEnv": "NOTIFY_API_KEY", "polling": { "enabled": true, "intervalSec": 30 } },
     { "id": "auth",    "type": "auth",    "label": "Auth",    "url": "http://10.0.0.2:3002", "apiKeyEnv": "AUTH_API_KEY", "publicUrl": "https://api.example.com" },
     { "id": "media",   "type": "media",   "label": "Media",   "url": "http://10.0.0.3:3003", "apiKeyEnv": "MEDIA_API_KEY" },
     { "id": "gateway", "type": "gateway", "label": "Gateway", "url": "http://10.0.0.4:3000", "metricsTokenEnv": "GATEWAY_METRICS_TOKEN" }

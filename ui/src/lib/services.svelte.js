@@ -1,6 +1,7 @@
 import { api } from './api.js';
 
-/** @typedef {{ id: string, type: 'notify'|'auth'|'media'|'gateway', label: string, url: string, publicUrl: string|null, hasMetrics: boolean }} ServiceInfo */
+/** @typedef {{ enabled: boolean, intervalSec: number }} Polling */
+/** @typedef {{ id: string, type: 'notify'|'auth'|'media'|'gateway', label: string, url: string, publicUrl: string|null, hasMetrics: boolean, polling: Polling }} ServiceInfo */
 /** @typedef {ServiceInfo & { health: boolean, ready: boolean, readyDetail: unknown, latencyMs: number, summary: any }} ServiceOverview */
 
 /** Configured services and their latest health, shared by the navigation and the overview page. */
@@ -38,6 +39,16 @@ export class Services {
     } finally {
       this.refreshing = { ...this.refreshing, [id]: false };
     }
+  }
+
+  /**
+   * Persist a service's auto-refresh setting (written to services.json by the server).
+   * @param {string} id
+   * @param {Polling} polling
+   */
+  async updatePolling(id, polling) {
+    const r = /** @type {{ service: ServiceInfo }} */ (await api.patch(`/services/${id}/settings`, { polling }));
+    this.items = this.items.map((s) => (s.id === id ? r.service : s));
   }
 
   /** Services never probed in this session (first paint of the overview). */
