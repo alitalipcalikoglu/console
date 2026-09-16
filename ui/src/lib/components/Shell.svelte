@@ -3,15 +3,14 @@
   import Icon from './Icon.svelte';
   import { router } from '../router.svelte.js';
   import { session } from '../session.svelte.js';
-  import { services } from '../services.svelte.js';
+  import { Services, services } from '../services.svelte.js';
   import { theme } from '../theme.svelte.js';
   import { pwa } from '../pwa.svelte.js';
   import { page } from '../page.svelte.js';
   import { t } from '../i18n.svelte.js';
   /** @type {{ children: import('svelte').Snippet }} */
   let { children } = $props();
-  /** @type {Record<string, string>} */
-  const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link' };
+  const ICONS = Services.ICONS;
   const current = $derived(router.path);
   /** @param {string} href */
   const active = (href) => (href === '/' ? current === '/' : current === href || current.startsWith(`${href}/`));

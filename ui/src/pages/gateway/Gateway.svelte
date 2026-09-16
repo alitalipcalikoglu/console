@@ -1,5 +1,6 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Stat from '../../lib/components/Stat.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
@@ -46,14 +47,14 @@
       {#if m?.uptimeSec != null}<Stat label={t('overview.uptime')} value={fmt.duration(m.uptimeSec)} />{/if}
     </div>
     <div class="stack">
-      <div class="card flush"><div class="card-head"><h2>{t('gateway.upstreams')}</h2></div><div class="card-body">
+      <Panel title={t('gateway.upstreams')}>
         {#if !Object.keys(upstreams).length}<p class="small muted">–</p>{:else}
         <div class="row wrap">{#each Object.entries(upstreams) as [route, ratio] (route)}
           {@const [ok, all] = ratio.split('/').map(Number)}
           <span class="badge {ok === 0 ? 'danger' : ok < all ? 'warn' : 'ok'}">{route} {ratio}</span>
         {/each}</div>{/if}
-      </div></div>
-      <div class="card flush"><div class="card-head"><h2>{t('gateway.routes')}</h2></div><div class="card-body">
+      </Panel>
+      <Panel title={t('gateway.routes')} flush>
         {#if !m}<p class="small muted" style="padding:8px">{t('gateway.noMetrics')}</p>
         {:else if !routes.length}<p class="small muted" style="padding:8px">–</p>
         {:else}<div class="table-wrap"><table class="table">
@@ -62,7 +63,7 @@
             <td><code>{id}</code></td><td class="num">{fmt.int(total(r))}</td><td class="num ok-text">{fmt.int(r.requests['2xx'] ?? 0)}</td><td class="num">{fmt.int(r.requests['4xx'] ?? 0)}</td><td class="num {r.requests['5xx'] ? 'danger-text' : ''}">{fmt.int(r.requests['5xx'] ?? 0)}</td>
             <td class="num {r.upstreamErrors ? 'warn-text' : ''}">{fmt.int(r.upstreamErrors)}</td><td class="num">{r.p50Ms == null ? '–' : `≤${fmt.ms(r.p50Ms)}`}</td><td class="num">{r.p95Ms == null ? '–' : `≤${fmt.ms(r.p95Ms)}`}</td><td class="num">{fmt.bytes(r.bytesIn)}</td><td class="num">{fmt.bytes(r.bytesOut)}</td>
           </tr>{/each}</tbody></table></div>{/if}
-      </div></div>
+      </Panel>
     </div>
   {/if}
 </Page>

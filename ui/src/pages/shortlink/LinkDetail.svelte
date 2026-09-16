@@ -1,5 +1,9 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
+  import RankedList from '../../lib/components/RankedList.svelte';
+  import Bars from '../../lib/components/Bars.svelte';
+  import StatusBadge from '../../lib/components/StatusBadge.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Stat from '../../lib/components/Stat.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
@@ -25,7 +29,6 @@
   const d = $derived(/** @type {any} */ (res.data));
   const l = $derived(d?.link);
   const st = $derived(d?.stats);
-  const maxDay = $derived(Math.max(1, ...(st?.byDay ?? []).map((/** @type {any} */ x) => x.clicks)));
   let busy = $state(false);
   let editOpen = $state(false);
   /** @type {'disable'|'delete'|null} */ let confirm = $state(null);
@@ -34,8 +37,6 @@
     busy = true;
     try { await fn(); toasts.ok(ok); if (reload) await res.load(); } catch (e) { toasts.error(e); } finally { busy = false; confirm = null; editOpen = false; }
   }
-  /** @param {string} s */
-  const tone = (s) => (s === 'active' ? 'ok' : s === 'disabled' ? 'danger' : 'warn');
   const qrSrc = $derived(`/api${base}/qr.png?scale=6&margin=2`);
 </script>
 
@@ -56,7 +57,7 @@
       <div class="card"><div class="card-body detail">
         <div class="info">
           <div class="row wrap" style="margin-bottom:12px">
-            <span class="badge {tone(l.status)}">{t(`sl.${l.status}`)}</span>
+            <StatusBadge status={l.status} label={t(`sl.${l.status}`)} />
             <span class="badge plain">{l.permanent ? '301' : '302'}</span>
             {#each l.tags as tg (tg)}<span class="badge plain">{tg}</span>{/each}
           </div>
@@ -86,22 +87,21 @@
       </div>
 
       {#if st && st.clicks > 0}
-        <div class="card flush"><div class="card-head"><h2>{t('sl.byDay')}</h2><span class="xs faint">{t('sl.clicksWindow', { d: DAYS })}</span></div><div class="card-body">
-          <div class="bars" role="img" aria-label={t('sl.byDay')}>
-            {#each st.byDay as day (day.day)}<div class="bar" style="height:{Math.max(4, Math.round((day.clicks / maxDay) * 100))}%" title="{day.day}: {day.clicks} ({day.visitors})"></div>{/each}
-          </div>
+        <Panel title={t('sl.byDay')}>
+          {#snippet aside()}<span class="xs faint">{t('sl.clicksWindow', { d: DAYS })}</span>{/snippet}
+          <Bars items={st.byDay.map((/** @type {any} */ d) => ({ value: d.clicks, title: `${d.day}: ${d.clicks} (${d.visitors})` }))} height={90} label={t('sl.byDay')} />
           <div class="row xs faint" style="justify-content:space-between;margin-top:4px"><span>{st.byDay[0]?.day}</span><span>{st.byDay.at(-1)?.day}</span></div>
-        </div></div>
+        </Panel>
         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
-          <div class="card flush"><div class="card-head"><h2>{t('sl.byReferrer')}</h2></div><div class="card-body">
-            <ol class="ranked">{#each st.byReferrer as r (r.referrer ?? '')}<li><span class="truncate {r.referrer ? 'mono small' : 'muted small'}">{r.referrer ?? t('sl.direct')}</span><span class="num">{fmt.int(r.clicks)}</span></li>{/each}</ol>
-          </div></div>
-          <div class="card flush"><div class="card-head"><h2>{t('sl.recent')}</h2></div><div class="card-body">
+          <Panel title={t('sl.byReferrer')}>
+            <RankedList items={st.byReferrer.map((/** @type {any} */ r) => ({ id: r.referrer ?? '', label: r.referrer ?? t('sl.direct'), mono: Boolean(r.referrer), value: fmt.int(r.clicks) }))} />
+          </Panel>
+          <Panel title={t('sl.recent')} flush>
             <div class="table-wrap"><table class="table">
               <thead><tr><th>{t('common.at')}</th><th>{t('sl.device')}</th><th>{t('sl.referrer')}</th><th class="hide-m">{t('sl.visitor')}</th></tr></thead>
               <tbody>{#each st.recent as c, i (i)}<tr><td style="white-space:nowrap"><Time value={c.at} /></td><td><span class="badge plain">{c.device}</span></td><td class="small truncate" style="max-width:160px">{c.referrer ?? '–'}</td><td class="mono xs faint hide-m">{c.visitor.slice(0, 12)}</td></tr>{/each}</tbody>
             </table></div>
-          </div></div>
+          </Panel>
         </div>
       {:else if st}
         <p class="small faint">{t('sl.noClicks')}</p>
@@ -120,9 +120,4 @@
   .qr { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 180px; }
   .qr img { border-radius: 8px; background: #fff; display: block; }
   @media (max-width: 700px) { .detail { grid-template-columns: minmax(0, 1fr); } .qr { width: 100%; } }
-  .bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; }
-  .bar { flex: 1; min-width: 3px; max-width: 40px; background: var(--accent); border-radius: 2px 2px 0 0; opacity: .85; }
-  .ranked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .ranked li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .ranked .num { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; flex: none; }
 </style>

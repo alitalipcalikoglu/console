@@ -7,6 +7,9 @@ import { api } from './api.js';
 
 /** Configured services and their latest health, shared by the navigation and the overview page. */
 export class Services {
+  /** Navigation icon per service type. @type {Record<ServiceInfo['type'], string>} */
+  static ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link' };
+
   constructor() {
     /** @type {ServiceInfo[]} */
     this.items = $state([]);

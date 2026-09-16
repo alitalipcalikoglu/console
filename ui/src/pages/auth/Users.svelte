@@ -1,5 +1,6 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Stat from '../../lib/components/Stat.svelte';
   import Empty from '../../lib/components/Empty.svelte';
@@ -76,12 +77,8 @@
     <Stat label={t('auth.disabledUsers')} value={fmt.int(m?.disabledUsers)} />
     <Stat label={t('auth.activeSessions')} value={fmt.int(m?.activeSessions)} />
   </div>
-  <div class="card flush">
-    <div class="card-head">
-      <h2>{t('auth.users')}</h2>
-      <div class="row" style="position:relative"><span style="position:absolute;left:10px;color:var(--text-3)"><Icon name="search" size={16} /></span><input id="user-search" class="input" style="padding-left:34px;width:min(320px,60vw)" type="search" placeholder="{t('auth.searchEmail')} (/)" bind:value={q} /></div>
-    </div>
-    <div class="card-body">
+  <Panel title={t('auth.users')} flush>
+    {#snippet aside()}<div class="row" style="position:relative"><span style="position:absolute;left:10px;color:var(--text-3)"><Icon name="search" size={16} /></span><input id="user-search" class="input" style="padding-left:34px;width:min(320px,60vw)" type="search" placeholder="{t('auth.searchEmail')} (/)" bind:value={q} /></div>{/snippet}
       {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} />
       {:else if list.loading && !items.length}<Skeleton rows={6} />
       {:else if !items.length}<Empty icon="users" title={t('auth.emptyTitle')} desc={t('auth.emptyDesc')} />
@@ -101,8 +98,7 @@
         </table></div>
         <LoadMore {cursor} busy={more} onmore={loadMore} />
       {/if}
-    </div>
-  </div>
+  </Panel>
 </Page>
 
 <Dialog open={createOpen} title={t('auth.createUser')} onclose={() => { createOpen = false; }}>

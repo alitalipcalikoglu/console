@@ -1,5 +1,7 @@
 <script>
   import Page from '../lib/components/Page.svelte';
+  import Panel from '../lib/components/Panel.svelte';
+  import StatusBadge from '../lib/components/StatusBadge.svelte';
   import Icon from '../lib/components/Icon.svelte';
   import Time from '../lib/components/Time.svelte';
   import CopyButton from '../lib/components/CopyButton.svelte';
@@ -54,15 +56,16 @@
         </div>
       </div></div>
 
-      <form class="card" onsubmit={changePassword}><div class="card-head"><h2>{t('account.password')}</h2></div><div class="card-body stack">
+      <Panel title={t('account.password')}><form class="stack" onsubmit={changePassword}>
         <div class="field"><label for="cp">{t('account.current')}</label><input id="cp" class="input" type="password" autocomplete="current-password" bind:value={cur} required /></div>
         <div class="field"><label for="np">{t('account.new')}</label><input id="np" class="input" type="password" autocomplete="new-password" bind:value={next} required minlength="12" /><span class="hint">{t('account.newHint')}</span></div>
         <div><button class="btn primary" type="submit" disabled={busy || !cur || next.length < 12}>{t('common.save')}</button></div>
-      </div></form>
+      </form></Panel>
     </div>
 
     <div class="stack">
-      <div class="card"><div class="card-head"><h2>{t('account.totp')}</h2><span class="badge {session.admin?.totpEnabled ? 'ok' : 'warn'}">{session.admin?.totpEnabled ? t('account.totpOn') : t('account.totpOff')}</span></div><div class="card-body stack">
+      <Panel title={t('account.totp')} bodyClass="stack">
+        {#snippet aside()}<StatusBadge status={session.admin?.totpEnabled ? 'active' : 'expired'} label={session.admin?.totpEnabled ? t('account.totpOn') : t('account.totpOff')} />{/snippet}
         <p class="small muted">{t('account.totpDesc')}</p>
         {#if session.admin?.totpEnabled}
           <div><button class="btn danger" onclick={() => { disableOpen = true; }}>{t('account.disableTotp')}</button></div>
@@ -77,12 +80,15 @@
         {:else}
           <div><button class="btn primary" onclick={startTotp} disabled={busy}><Icon name="shield" size={16} /> {t('account.enableTotp')}</button></div>
         {/if}
-      </div></div>
+      </Panel>
 
-      <div class="card flush"><div class="card-head"><h2>{t('account.sessions')}</h2>{#if items.length > 1}<button class="btn sm" onclick={logoutOthers} disabled={busy}>{t('account.logoutOthers')}</button>{/if}</div><div class="card-body"><div class="table-wrap"><table class="table">
+      <Panel title={t('account.sessions')} flush>
+        {#snippet aside()}{#if items.length > 1}<button class="btn sm" onclick={logoutOthers} disabled={busy}>{t('account.logoutOthers')}</button>{/if}{/snippet}
+        <div class="table-wrap"><table class="table">
         <thead><tr><th>{t('auth.device')}</th><th>{t('common.ip')}</th><th>{t('auth.lastSeen')}</th></tr></thead>
         <tbody>{#each items as s (s.id)}<tr><td class="small truncate" style="max-width:260px">{s.userAgent ?? '–'}{#if s.current} <span class="badge ok plain">{t('account.thisDevice')}</span>{/if}</td><td class="mono small">{s.ip ?? '–'}</td><td><Time value={s.lastSeenAt} /></td></tr>{/each}</tbody>
-      </table></div></div></div>
+      </table></div>
+      </Panel>
     </div>
   </div>
 </Page>

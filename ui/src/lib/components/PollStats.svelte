@@ -1,5 +1,6 @@
 <script>
   /** Request timing of one service's poller: last ten durations, average, effective interval, queue state. */
+  import Bars from './Bars.svelte';
   import Icon from './Icon.svelte';
   import { poller } from '../poller.svelte.js';
   import { services } from '../services.svelte.js';
@@ -27,19 +28,11 @@
       <span class="grow"></span>
       <span class="small muted">{#if p.inFlight}<span class="badge info">{t('poll.inFlight')}</span>{:else if p.running}{t('poll.next', { s: p.countdown })}{:else}{t('poll.paused')}{/if}</span>
     </div>
-    <div class="bars" aria-label={t('poll.lastTen')} title={t('poll.lastTen')}>
-      {#each Array(10) as _, i (i)}
-        {@const ms = p.stats.durations[p.stats.durations.length - 10 + i]}
-        <span class="bar {ms !== undefined && ms > cfg.intervalSec * 1000 ? 'over' : ''}" style="height:{ms === undefined ? 2 : Math.max(3, Math.round((ms / max) * 28))}px" title={ms === undefined ? '' : fmt.ms(ms)}></span>
-      {/each}
-    </div>
+    <Bars items={Array.from({ length: 10 }, (_, i) => { const ms = p.stats.durations[p.stats.durations.length - 10 + i]; return { value: ms, title: ms === undefined ? '' : fmt.ms(ms), tone: ms !== undefined && ms > cfg.intervalSec * 1000 ? 'warn' : '' }; })} max={max} barWidth={10} label={t('poll.lastTen')} />
     {#if p.effectiveSec > cfg.intervalSec}<p class="xs warn-text" style="margin-top:6px">{t('poll.slowedHint', { avg: (p.stats.avgMs / 1000).toFixed(1) })}</p>{/if}
   </div>
 {/if}
 
 <style>
   .stats { padding: 10px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
-  .bars { display: flex; align-items: flex-end; gap: 3px; height: 28px; }
-  .bar { width: 10px; background: var(--accent); border-radius: 2px 2px 0 0; opacity: .85; }
-  .bar.over { background: var(--warn); }
 </style>

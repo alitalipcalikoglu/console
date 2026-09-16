@@ -47,6 +47,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 /* Utilities */
+.subhead { font-size: .78rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 8px; font-weight: 600; }
 .muted { color: var(--text-2); } .faint { color: var(--text-3); } .small { font-size: .875rem; } .xs { font-size: .78rem; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row { display: flex; align-items: center; gap: 8px; } .row.wrap { flex-wrap: wrap; } .grow { flex: 1; min-width: 0; }

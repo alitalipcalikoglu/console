@@ -1,5 +1,8 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
+  import RankedList from '../../lib/components/RankedList.svelte';
+  import StatusBadge from '../../lib/components/StatusBadge.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Stat from '../../lib/components/Stat.svelte';
   import Empty from '../../lib/components/Empty.svelte';
@@ -89,8 +92,6 @@
   const svc = $derived(services.get(sid));
   const m = $derived(summary.data?.summary);
   const st = $derived(/** @type {any} */ (stats.data));
-  /** @param {string} o */
-  const tone = (o) => (o === 'success' ? 'ok' : o === 'failure' ? 'danger' : o === 'denied' ? 'warn' : '');
   /** @param {any} p */
   const party = (p) => (p ? `${p.type}:${p.id}` : '');
 </script>
@@ -118,33 +119,31 @@
     <div class="card" style="margin-bottom:20px"><div class="card-body">
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px">
         <div>
-          <h3 class="xs faint" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">{t('ev.topActions')}</h3>
-          <ol class="ranked">{#each st.topActions as a (a.action)}<li><button class="linkish truncate" onclick={() => { f = { ...f, actionPrefix: a.action }; }}><code>{a.action}</code></button><span class="num">{fmt.int(a.count)}</span></li>{/each}</ol>
+          <h3 class="subhead">{t('ev.topActions')}</h3>
+          <RankedList items={st.topActions.map((/** @type {any} */ a) => ({ id: a.action, label: a.action, mono: true, value: fmt.int(a.count), onclick: () => { f = { ...f, actionPrefix: a.action }; } }))} />
         </div>
         <div>
-          <h3 class="xs faint" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">{t('ev.topFailures')}</h3>
-          {#if !st.topFailures.length}<p class="small faint">–</p>{:else}
-          <ol class="ranked">{#each st.topFailures as a (a.action)}<li><button class="linkish truncate" onclick={() => { f = { ...f, actionPrefix: a.action, outcome: '' }; }}><code class="danger-text">{a.action}</code></button><span class="num">{fmt.int(a.count)}</span></li>{/each}</ol>{/if}
+          <h3 class="subhead">{t('ev.topFailures')}</h3>
+          <RankedList items={st.topFailures.map((/** @type {any} */ a) => ({ id: a.action, label: a.action, mono: true, tone: 'danger', value: fmt.int(a.count), onclick: () => { f = { ...f, actionPrefix: a.action, outcome: '' }; } }))} />
         </div>
         <div>
-          <h3 class="xs faint" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">{t('ev.bySource')}</h3>
-          <div class="row wrap">{#each st.bySource as s (s.source)}<button class="badge plain linkish" aria-pressed={f.source === s.source} onclick={() => { f = { ...f, source: f.source === s.source ? '' : s.source }; }}>{s.source} · {fmt.int(s.count)}</button>{/each}</div>
+          <h3 class="subhead">{t('ev.bySource')}</h3>
+          <RankedList items={st.bySource.map((/** @type {any} */ s) => ({ id: s.source, label: s.source, value: fmt.int(s.count), active: f.source === s.source, onclick: () => { f = { ...f, source: f.source === s.source ? '' : s.source }; } }))} />
           {#if st.topActors.length}
-            <h3 class="xs faint" style="text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">{t('ev.topActors')}</h3>
-            <ol class="ranked">{#each st.topActors.slice(0, 5) as a (`${a.type}:${a.id}`)}<li><button class="linkish truncate" onclick={() => { f = { ...f, actorType: a.type, actorId: a.id }; }}><span class="mono small">{a.type}:{a.id}</span>{#if a.name}<span class="muted small"> · {a.name}</span>{/if}</button><span class="num">{fmt.int(a.count)}</span></li>{/each}</ol>
+            <h3 class="subhead" style="margin-top:14px">{t('ev.topActors')}</h3>
+            <RankedList items={st.topActors.slice(0, 5).map((/** @type {any} */ a) => ({ id: `${a.type}:${a.id}`, label: `${a.type}:${a.id}`, sub: a.name ?? undefined, mono: true, value: fmt.int(a.count), onclick: () => { f = { ...f, actorType: a.type, actorId: a.id }; } }))} />
           {/if}
         </div>
       </div>
     </div></div>
   {/if}
 
-  <div class="card flush">
-    <div class="card-head" style="flex-wrap:wrap">
-      <h2 class="grow" style="min-width:max-content">{t('ev.events')}</h2>
+  <Panel title={t('ev.events')} flush>
+    {#snippet aside()}
       <div class="seg">{#each OUTCOMES as o (o)}<button aria-pressed={f.outcome === o} onclick={() => { f = { ...f, outcome: o }; }}>{o ? t(`ev.${o}`) : t('common.all')}</button>{/each}</div>
       <input class="input" style="width:min(260px,100%)" type="search" placeholder={t('ev.actionPrefix')} bind:value={f.actionPrefix} />
       <button class="btn {showFilters ? 'primary' : ''}" onclick={() => { showFilters = !showFilters; }} aria-expanded={showFilters}><Icon name="filter" size={14} /> {t('ev.filters')}{#if active}<span class="count">{active}</span>{/if}</button>
-    </div>
+    {/snippet}
     {#if showFilters}
       <div class="filters">
         <div class="field"><label for="f-source">{t('ev.source')}</label><input id="f-source" class="input" bind:value={f.source} placeholder="auth" /></div>
@@ -159,7 +158,6 @@
         <div class="field" style="justify-content:end"><button class="btn" onclick={clearFilters} disabled={!active}><Icon name="x" size={14} /> {t('ev.clear')}</button></div>
       </div>
     {/if}
-    <div class="card-body">
       {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} />
       {:else if list.loading && !items.length}<Skeleton rows={8} />
       {:else if !items.length}<Empty icon="history" title={t('ev.emptyTitle')} desc={t('ev.emptyDesc')} />
@@ -171,7 +169,7 @@
               <tr class="clickable" onclick={() => router.go(`/audit/${sid}/events/${e.id}`)}>
                 <td style="white-space:nowrap"><Time value={e.at} /></td>
                 <td><code class="{e.outcome !== 'success' ? 'danger-text' : ''}">{e.action}</code></td>
-                <td><span class="badge {tone(e.outcome)}">{t(`ev.${e.outcome}`)}</span></td>
+                <td><StatusBadge status={e.outcome} label={t(`ev.${e.outcome}`)} /></td>
                 <td class="mono small truncate" style="max-width:180px" title={e.actor?.name ?? ''}>{party(e.actor)}</td>
                 <td class="mono small truncate hide-m" style="max-width:180px">{party(e.target)}</td>
                 <td class="small hide-m">{e.source}</td>
@@ -182,8 +180,7 @@
         </table></div>
         <LoadMore {cursor} busy={more} onmore={loadMore} />
       {/if}
-    </div>
-  </div>
+  </Panel>
 </Page>
 
 <Dialog open={exportOpen} title={t('ev.exportTitle')} onclose={() => { exportOpen = false; }}>
@@ -198,13 +195,6 @@
 </Dialog>
 
 <style>
-  .ranked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .ranked li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .ranked .num { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; flex: none; }
-  .linkish { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; min-width: 0; font: inherit; }
-  .linkish:hover { text-decoration: underline; }
-  .badge.linkish { padding: 2px 8px; }
-  .badge.linkish[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
   .count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: .7rem; font-weight: 700; margin-left: 4px; }
   .btn.primary .count { background: #fff; color: var(--accent); }
   .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface-2); }

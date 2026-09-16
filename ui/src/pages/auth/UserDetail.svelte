@@ -1,5 +1,6 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import ErrorBox from '../../lib/components/ErrorBox.svelte';
@@ -62,10 +63,9 @@
         </dl>
       </div></div>
 
-      <div class="card flush">
-        <div class="card-head"><h2>{t('auth.sessions')} <span class="badge plain">{d.sessions.length}</span></h2>
-          {#if d.sessions.length && session.isAdmin}<button class="btn sm danger" onclick={() => { confirm = 'revokeAll'; }}>{t('auth.revokeAll')}</button>{/if}</div>
-        <div class="card-body">
+      <Panel flush>
+        {#snippet head()}<h2 class="grow">{t('auth.sessions')} <span class="badge plain">{d.sessions.length}</span></h2>
+          {#if d.sessions.length && session.isAdmin}<button class="btn sm danger" onclick={() => { confirm = 'revokeAll'; }}>{t('auth.revokeAll')}</button>{/if}{/snippet}
           {#if !d.sessions.length}<p class="small muted" style="text-align:center;padding:12px">{t('auth.noSessions')}</p>
           {:else}<div class="table-wrap"><table class="table">
             <thead><tr><th>{t('auth.device')}</th><th class="hide-m">{t('common.ip')}</th><th>{t('auth.lastSeen')}</th><th class="hide-m">{t('auth.expires')}</th><th></th></tr></thead>
@@ -74,12 +74,9 @@
               <td><Time value={s.lastUsedAt} /></td><td class="hide-m"><Time value={s.expiresAt} /></td>
               <td>{#if session.isAdmin}<button class="btn sm" onclick={() => run(() => api.delete(`${base}/sessions/${s.id}`), t('auth.revoked'))} disabled={busy}>{t('auth.revoke')}</button>{/if}</td>
             </tr>{/each}</tbody></table></div>{/if}
-        </div>
-      </div>
+      </Panel>
 
-      <div class="card flush">
-        <div class="card-head"><h2>{t('auth.events')}</h2></div>
-        <div class="card-body">
+      <Panel title={t('auth.events')} flush>
           {#if !d.events.length}<Empty icon="list" title={t('audit.emptyTitle')} />
           {:else}<div class="table-wrap"><table class="table">
             <thead><tr><th>{t('common.at')}</th><th>{t('audit.action')}</th><th class="hide-m">{t('common.ip')}</th><th class="hide-m">{t('common.details')}</th></tr></thead>
@@ -89,8 +86,7 @@
               <td class="mono small hide-m">{e.ip ?? '–'}</td>
               <td class="small muted mono hide-m">{e.meta ? JSON.stringify(e.meta) : ''}</td>
             </tr>{/each}</tbody></table></div>{/if}
-        </div>
-      </div>
+      </Panel>
     </div>
   {/if}
 </Page>

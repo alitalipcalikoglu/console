@@ -3,14 +3,13 @@
   import Page from '../lib/components/Page.svelte';
   import Icon from '../lib/components/Icon.svelte';
   import Time from '../lib/components/Time.svelte';
-  import { services } from '../lib/services.svelte.js';
+  import { Services, services } from '../lib/services.svelte.js';
   import { Fmt } from '../lib/format.js';
   import { t, i18n } from '../lib/i18n.svelte.js';
   import { toasts } from '../lib/toast.svelte.js';
   import { poller } from '../lib/poller.svelte.js';
   const fmt = $derived(new Fmt(i18n.lang));
-  /** @type {Record<string, string>} */
-  const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link' };
+  const ICONS = Services.ICONS;
   // First visit probes only the services never seen in this session; afterwards each card refreshes on demand.
   $effect(() => { if (services.loaded) untrack(() => services.refreshMissing()); });
   /**

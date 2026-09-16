@@ -1,5 +1,6 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Stat from '../../lib/components/Stat.svelte';
   import Empty from '../../lib/components/Empty.svelte';
@@ -113,14 +114,8 @@
     <Stat label={t('notify.oldest')} value={fmt.duration(m?.oldestQueuedAgeSec)} tone={(m?.oldestQueuedAgeSec ?? 0) > 300 ? 'warn' : ''} />
   </div>
 
-  <div class="card flush">
-    <div class="card-head">
-      <h2>{t('notify.messages')}</h2>
-      <div class="seg">
-        {#each STATUSES as s (s)}<button aria-pressed={status === s} onclick={() => { status = s; }}>{s ? t(`notify.${s}`) : t('common.all')}</button>{/each}
-      </div>
-    </div>
-    <div class="card-body">
+  <Panel title={t('notify.messages')} flush>
+    {#snippet aside()}<div class="seg">{#each STATUSES as s (s)}<button aria-pressed={status === s} onclick={() => { status = s; }}>{s ? t(`notify.${s}`) : t('common.all')}</button>{/each}</div>{/snippet}
       {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} />
       {:else if list.loading && !items.length}<Skeleton rows={6} />
       {:else if !items.length}<Empty title={t('notify.emptyTitle')} desc={t('notify.emptyDesc')} />
@@ -143,8 +138,7 @@
         </table></div>
         <LoadMore {cursor} busy={more} onmore={loadMore} />
       {/if}
-    </div>
-  </div>
+  </Panel>
 </Page>
 
 <Dialog open={sendOpen} title={t('notify.sendTitle')} onclose={() => { sendOpen = false; }} wide>

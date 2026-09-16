@@ -1,5 +1,7 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
+  import StatusBadge from '../../lib/components/StatusBadge.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import ErrorBox from '../../lib/components/ErrorBox.svelte';
@@ -13,8 +15,6 @@
   const res = new Resource(() => api.get(`/services/${sid}/audit/events/${id}`));
   $effect(() => { res.load(); });
   const e = $derived(/** @type {any} */ (res.data)?.event);
-  /** @param {string} o */
-  const tone = (o) => (o === 'success' ? 'ok' : o === 'failure' ? 'danger' : o === 'denied' ? 'warn' : '');
   /** @param {Record<string, string>} q */
   const link = (q) => `/audit/${sid}?${new URLSearchParams(q)}`;
   const metaText = $derived(e?.meta ? JSON.stringify(e.meta, null, 2) : '');
@@ -29,7 +29,7 @@
     <div class="stack">
       <div class="card"><div class="card-body">
         <div class="row wrap" style="margin-bottom:14px">
-          <span class="badge {tone(e.outcome)}">{t(`ev.${e.outcome}`)}</span>
+          <StatusBadge status={e.outcome} label={t(`ev.${e.outcome}`)} />
           <code style="font-size:1rem;font-weight:600">{e.action}</code>
           <span class="mono small muted truncate" style="max-width:100%">{e.id}</span><CopyButton text={e.id} />
         </div>
@@ -45,15 +45,17 @@
           {#if e.clientId}<dt>{t('ev.clientId')}</dt><dd class="mono small">{e.clientId}</dd>{/if}
         </dl>
       </div></div>
-      <div class="card flush"><div class="card-head"><h2>{t('ev.meta')}</h2>{#if redacted}<span class="xs faint">{t('ev.viaRedaction')}</span>{/if}</div><div class="card-body">
+      <Panel title={t('ev.meta')}>
+        {#snippet aside()}{#if redacted}<span class="xs faint">{t('ev.viaRedaction')}</span>{/if}{/snippet}
         {#if e.meta}<pre class="meta">{metaText}</pre>{:else}<p class="small faint">–</p>{/if}
-      </div></div>
-      <div class="card flush"><div class="card-head"><h2>{t('ev.hash')}</h2><span class="xs faint mono">{t('ev.seq')} {e.seq}</span></div><div class="card-body">
+      </Panel>
+      <Panel title={t('ev.hash')}>
+        {#snippet aside()}<span class="xs faint mono">{t('ev.seq')} {e.seq}</span>{/snippet}
         <dl class="kv">
           <dt>{t('ev.hash')}</dt><dd class="row" style="min-width:0"><span class="mono small truncate">{e.hash}</span><CopyButton text={e.hash} /></dd>
           <dt>{t('ev.prevHash')}</dt><dd class="row" style="min-width:0"><span class="mono small truncate">{e.prevHash}</span><CopyButton text={e.prevHash} /></dd>
         </dl>
-      </div></div>
+      </Panel>
     </div>
   {/if}
 </Page>

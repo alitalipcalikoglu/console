@@ -1,5 +1,6 @@
 <script>
   import Page from '../lib/components/Page.svelte';
+  import Panel from '../lib/components/Panel.svelte';
   import Icon from '../lib/components/Icon.svelte';
   import Empty from '../lib/components/Empty.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
@@ -25,12 +26,11 @@
 
 <Page title={t('audit.title')} desc={t('audit.desc')}>
   {#snippet actions()}<button class="btn icon" onclick={() => list.load()} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
-  <div class="card flush">
-    <div class="card-head" style="flex-wrap:wrap">
+  <Panel flush>
+    {#snippet head()}
       <div class="seg">{#each QUICK as q (q)}<button aria-pressed={action === q} onclick={() => { action = q; }}>{q || t('common.all')}</button>{/each}</div>
       <input class="input" style="width:min(280px,100%)" type="search" placeholder={t('audit.filter')} bind:value={action} />
-    </div>
-    <div class="card-body">
+    {/snippet}
       {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} />
       {:else if list.loading && !items.length}<Skeleton rows={8} />
       {:else if !items.length}<Empty icon="list" title={t('audit.emptyTitle')} desc={t('audit.emptyDesc')} />
@@ -47,6 +47,5 @@
         </table></div>
         <LoadMore cursor={before} busy={more} onmore={loadMore} />
       {/if}
-    </div>
-  </div>
+  </Panel>
 </Page>

@@ -1,5 +1,8 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
+  import RankedList from '../../lib/components/RankedList.svelte';
+  import StatusBadge from '../../lib/components/StatusBadge.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Stat from '../../lib/components/Stat.svelte';
   import Empty from '../../lib/components/Empty.svelte';
@@ -61,8 +64,6 @@
   const svc = $derived(services.get(sid));
   const m = $derived(summary.data?.summary);
   const o = $derived(/** @type {any} */ (overview.data));
-  /** @param {string} s */
-  const tone = (s) => (s === 'active' ? 'ok' : s === 'disabled' ? 'danger' : 'warn');
   /** @param {string} u */
   const host = (u) => { try { return new URL(u).hostname; } catch { return u; } };
 </script>
@@ -84,19 +85,17 @@
 
   {#if o?.topLinks?.length}
     <div class="card" style="margin-bottom:20px"><div class="card-body">
-      <h3 class="xs faint" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">{t('sl.topLinks')} · {t('sl.clicksWindow', { d: DAYS })}</h3>
-      <ol class="ranked">{#each o.topLinks as l (l.code)}<li><a class="truncate" href="/shortlink/{sid}/links/{l.code}"><code>{l.code}</code> <span class="muted small">{host(l.url)}</span></a><span class="num">{fmt.int(l.clicks)}</span></li>{/each}</ol>
+      <h3 class="subhead">{t('sl.topLinks')} · {t('sl.clicksWindow', { d: DAYS })}</h3>
+      <RankedList items={o.topLinks.map((/** @type {any} */ l) => ({ id: l.code, label: l.code, mono: true, sub: host(l.url), value: fmt.int(l.clicks), href: `/shortlink/${sid}/links/${l.code}` }))} />
     </div></div>
   {/if}
 
-  <div class="card flush">
-    <div class="card-head" style="flex-wrap:wrap">
-      <h2 class="grow" style="min-width:max-content">{t('sl.links')}</h2>
+  <Panel title={t('sl.links')} flush>
+    {#snippet aside()}
       <div class="seg">{#each STATUSES as s (s)}<button aria-pressed={status === s} onclick={() => { status = s; }}>{s ? t(`sl.${s}`) : t('common.all')}</button>{/each}</div>
       <input class="input" style="width:min(240px,100%)" type="search" placeholder={t('sl.search')} bind:value={q} />
       <input class="input" style="width:min(140px,100%)" type="search" placeholder={t('sl.tag')} bind:value={tag} />
-    </div>
-    <div class="card-body">
+    {/snippet}
       {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} />
       {:else if list.loading && !items.length}<Skeleton rows={6} />
       {:else if !items.length}<Empty icon="link" title={t('sl.emptyTitle')} desc={t('sl.emptyDesc')} />
@@ -108,7 +107,7 @@
               <tr class="clickable" onclick={() => router.go(`/shortlink/${sid}/links/${l.code}`)}>
                 <td><span class="row" style="gap:4px"><code>{l.code}</code><span onclick={(e) => e.stopPropagation()} role="presentation"><CopyButton text={l.shortUrl} /></span></span></td>
                 <td class="truncate small" style="max-width:260px" title={l.url}>{l.url.replace(/^https?:\/\//, '')}</td>
-                <td><span class="badge {tone(l.status)}">{t(`sl.${l.status}`)}</span></td>
+                <td><StatusBadge status={l.status} label={t(`sl.${l.status}`)} /></td>
                 <td class="num">{fmt.int(l.clicks)}{#if l.maxClicks != null}<span class="faint xs"> / {fmt.int(l.maxClicks)}</span>{/if}</td>
                 <td class="hide-m"><span class="row wrap" style="gap:4px">{#each l.tags as tg (tg)}<span class="badge plain">{tg}</span>{/each}</span></td>
                 <td class="hide-m small">{#if l.lastClickAt}<Time value={l.lastClickAt} />{:else}<span class="faint">{t('sl.never')}</span>{/if}</td>
@@ -119,15 +118,7 @@
         </table></div>
         <LoadMore {cursor} busy={more} onmore={loadMore} />
       {/if}
-    </div>
-  </div>
+  </Panel>
 </Page>
 
 <LinkForm open={createOpen} title={t('sl.create')} submitLabel={t('sl.create')} {busy} onsubmit={create} onclose={() => { createOpen = false; }} />
-
-<style>
-  .ranked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .ranked li { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .ranked a { color: inherit; min-width: 0; }
-  .ranked .num { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; flex: none; }
-</style>

@@ -1,5 +1,6 @@
 <script>
   import Page from '../../lib/components/Page.svelte';
+  import Panel from '../../lib/components/Panel.svelte';
   import Icon from '../../lib/components/Icon.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import ErrorBox from '../../lib/components/ErrorBox.svelte';
@@ -67,14 +68,14 @@
             <dt>{t('common.created')}</dt><dd><Time value={f.createdAt} mode="absolute" /></dd>
           </dl>
         </div></div>
-        <div class="card flush"><div class="card-head"><h2>{t('media.urls')}</h2>
-          {#if f.visibility === 'private'}<div class="row"><input class="input" style="width:110px" inputmode="numeric" bind:value={ttl} aria-label={t('media.ttl')} /><button class="btn sm primary" onclick={sign}><Icon name="link" size={14} /> {t('media.signedUrl')}</button></div>{/if}</div>
-          <div class="card-body"><div class="table-wrap"><table class="table"><tbody>
+        <Panel title={t('media.urls')} flush>
+          {#snippet aside()}{#if f.visibility === 'private'}<div class="row"><input class="input" style="width:110px" inputmode="numeric" bind:value={ttl} aria-label={t('media.ttl')} /><button class="btn sm primary" onclick={sign}><Icon name="link" size={14} /> {t('media.signedUrl')}</button></div>{/if}{/snippet}
+          <div class="table-wrap"><table class="table"><tbody>
             {#each Object.entries(signed ?? f.urls) as [name, u] (name)}
               <tr><td style="width:90px"><code>{name}</code></td><td class="mono xs" style="max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href={u.url} target="_blank" rel="noopener" title={u.url}>{u.url.replace(/^https?:\/\/[^/]+/, '')}</a></td><td class="xs faint" style="white-space:nowrap">{#if u.expiresAt}<Time value={u.expiresAt} />{/if}</td><td style="width:40px"><CopyButton text={u.url} /></td></tr>
             {/each}
-          </tbody></table></div></div>
-        </div>
+          </tbody></table></div>
+        </Panel>
       </div>
     </div>
   {/if}
