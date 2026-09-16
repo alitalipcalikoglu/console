@@ -117,11 +117,11 @@
     </div>
   {:else}
     <div class="card flush"><div class="card-body"><div class="table-wrap"><table class="table">
-      <thead><tr><th></th><th>{t('common.name')}</th><th>{t('common.type')}</th><th class="num">{t('common.size')}</th><th>{t('media.dimensions')}</th><th>{t('media.visibility')}</th><th>{t('common.created')}</th></tr></thead>
+      <thead><tr><th></th><th>{t('common.name')}</th><th class="hide-m">{t('common.type')}</th><th class="num">{t('common.size')}</th><th class="hide-m">{t('media.dimensions')}</th><th>{t('media.visibility')}</th><th class="hide-m">{t('common.created')}</th></tr></thead>
       <tbody>{#each items as f (f.id)}<tr class="clickable" onclick={() => router.go(`/media/${sid}/files/${f.id}`)}>
         <td style="width:44px">{#if isImage(f)}<img src="/api/services/{sid}/media/files/{f.id}/bytes/thumb" alt="" width="36" height="36" style="border-radius:6px;object-fit:cover;display:block" loading="lazy" />{:else}<Icon name="file" />{/if}</td>
-        <td class="truncate" style="max-width:280px">{f.name}</td><td class="mono small">{f.mime}</td><td class="num">{fmt.bytes(f.size)}</td>
-        <td class="small muted">{f.width ? `${f.width}×${f.height}` : '–'}</td><td><StatusBadge status={f.visibility} label={t(`media.${f.visibility}`)} /></td><td><Time value={f.createdAt} /></td>
+        <td class="truncate" style="max-width:280px">{f.name}</td><td class="mono small hide-m">{f.mime}</td><td class="num">{fmt.bytes(f.size)}</td>
+        <td class="small muted hide-m">{f.width ? `${f.width}×${f.height}` : '–'}</td><td><StatusBadge status={f.visibility} label={t(`media.${f.visibility}`)} /></td><td class="hide-m"><Time value={f.createdAt} /></td>
       </tr>{/each}</tbody></table></div></div></div>
   {/if}
   <LoadMore {cursor} busy={more} onmore={loadMore} />

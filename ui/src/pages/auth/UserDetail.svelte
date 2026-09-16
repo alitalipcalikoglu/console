@@ -68,10 +68,10 @@
         <div class="card-body">
           {#if !d.sessions.length}<p class="small muted" style="text-align:center;padding:12px">{t('auth.noSessions')}</p>
           {:else}<div class="table-wrap"><table class="table">
-            <thead><tr><th>{t('auth.device')}</th><th>{t('common.ip')}</th><th>{t('auth.lastSeen')}</th><th>{t('auth.expires')}</th><th></th></tr></thead>
+            <thead><tr><th>{t('auth.device')}</th><th class="hide-m">{t('common.ip')}</th><th>{t('auth.lastSeen')}</th><th class="hide-m">{t('auth.expires')}</th><th></th></tr></thead>
             <tbody>{#each d.sessions as s (s.id)}<tr>
-              <td class="truncate small" style="max-width:320px" title={s.userAgent ?? ''}>{s.userAgent ?? '–'}</td><td class="mono small">{s.ip ?? '–'}</td>
-              <td><Time value={s.lastUsedAt} /></td><td><Time value={s.expiresAt} /></td>
+              <td class="truncate small" style="max-width:320px" title={s.userAgent ?? ''}>{s.userAgent ?? '–'}</td><td class="mono small hide-m">{s.ip ?? '–'}</td>
+              <td><Time value={s.lastUsedAt} /></td><td class="hide-m"><Time value={s.expiresAt} /></td>
               <td>{#if session.isAdmin}<button class="btn sm" onclick={() => run(() => api.delete(`${base}/sessions/${s.id}`), t('auth.revoked'))} disabled={busy}>{t('auth.revoke')}</button>{/if}</td>
             </tr>{/each}</tbody></table></div>{/if}
         </div>
@@ -82,12 +82,12 @@
         <div class="card-body">
           {#if !d.events.length}<Empty icon="list" title={t('audit.emptyTitle')} />
           {:else}<div class="table-wrap"><table class="table">
-            <thead><tr><th>{t('common.at')}</th><th>{t('audit.action')}</th><th>{t('common.ip')}</th><th>{t('common.details')}</th></tr></thead>
+            <thead><tr><th>{t('common.at')}</th><th>{t('audit.action')}</th><th class="hide-m">{t('common.ip')}</th><th class="hide-m">{t('common.details')}</th></tr></thead>
             <tbody>{#each d.events as e (e.id)}<tr>
               <td style="white-space:nowrap"><Time value={e.at} /></td>
               <td><code class="{/failed|locked|reuse/.test(e.type) ? 'danger-text' : ''}">{e.type}</code></td>
-              <td class="mono small">{e.ip ?? '–'}</td>
-              <td class="small muted mono">{e.meta ? JSON.stringify(e.meta) : ''}</td>
+              <td class="mono small hide-m">{e.ip ?? '–'}</td>
+              <td class="small muted mono hide-m">{e.meta ? JSON.stringify(e.meta) : ''}</td>
             </tr>{/each}</tbody></table></div>{/if}
         </div>
       </div>

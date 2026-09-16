@@ -87,14 +87,14 @@
       {:else if !items.length}<Empty icon="users" title={t('auth.emptyTitle')} desc={t('auth.emptyDesc')} />
       {:else}
         <div class="table-wrap"><table class="table">
-          <thead><tr><th>{t('common.email')}</th><th>{t('common.name')}</th><th>{t('common.status')}</th><th>{t('auth.verified')}</th><th>{t('common.created')}</th></tr></thead>
+          <thead><tr><th>{t('common.email')}</th><th class="hide-m">{t('common.name')}</th><th>{t('common.status')}</th><th>{t('auth.verified')}</th><th class="hide-m">{t('common.created')}</th></tr></thead>
           <tbody>
             {#each items as u (u.id)}
               <tr class="clickable" onclick={() => router.go(`/auth/${sid}/users/${u.id}`)}>
-                <td class="mono small">{u.email}</td><td>{u.name ?? ''}</td>
+                <td class="mono small">{u.email}</td><td class="hide-m">{u.name ?? ''}</td>
                 <td><StatusBadge status={u.lockedUntil ? 'locked' : u.status} label={u.lockedUntil ? t('auth.locked') : u.status} /></td>
                 <td>{#if u.emailVerified}<span class="badge ok">{t('auth.verified')}</span>{:else}<span class="badge warn">{t('auth.unverified')}</span>{/if}</td>
-                <td><Time value={u.createdAt} /></td>
+                <td class="hide-m"><Time value={u.createdAt} /></td>
               </tr>
             {/each}
           </tbody>

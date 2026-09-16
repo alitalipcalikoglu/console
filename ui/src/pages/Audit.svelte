@@ -36,13 +36,13 @@
       {:else if !items.length}<Empty icon="list" title={t('audit.emptyTitle')} desc={t('audit.emptyDesc')} />
       {:else}
         <div class="table-wrap"><table class="table">
-          <thead><tr><th>{t('common.at')}</th><th>{t('audit.actor')}</th><th>{t('audit.action')}</th><th>{t('audit.target')}</th><th>{t('common.details')}</th><th>{t('common.ip')}</th></tr></thead>
+          <thead><tr><th>{t('common.at')}</th><th class="hide-m">{t('audit.actor')}</th><th>{t('audit.action')}</th><th>{t('audit.target')}</th><th class="hide-m">{t('common.details')}</th><th class="hide-m">{t('common.ip')}</th></tr></thead>
           <tbody>{#each items as e (e.id)}<tr>
-            <td style="white-space:nowrap"><Time value={e.at} /></td><td class="small">{e.adminEmail ?? '–'}</td>
+            <td style="white-space:nowrap"><Time value={e.at} /></td><td class="small hide-m">{e.adminEmail ?? '–'}</td>
             <td><code class="{/failed|delete|revoke|disable/.test(e.action) ? 'danger-text' : ''}">{e.action}</code></td>
             <td class="mono small truncate" style="max-width:220px">{e.target ?? ''}</td>
-            <td class="small muted mono truncate" style="max-width:320px" title={e.meta ? JSON.stringify(e.meta) : ''}>{e.meta ? JSON.stringify(e.meta) : ''}</td>
-            <td class="mono small">{e.ip ?? '–'}</td>
+            <td class="small muted mono truncate hide-m" style="max-width:320px" title={e.meta ? JSON.stringify(e.meta) : ''}>{e.meta ? JSON.stringify(e.meta) : ''}</td>
+            <td class="mono small hide-m">{e.ip ?? '–'}</td>
           </tr>{/each}</tbody>
         </table></div>
         <LoadMore cursor={before} busy={more} onmore={loadMore} />

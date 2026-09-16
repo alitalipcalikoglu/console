@@ -33,15 +33,15 @@
     {:else if !list.loaded}<Skeleton rows={4} />
     {:else}
       <div class="table-wrap"><table class="table">
-        <thead><tr><th>{t('common.email')}</th><th>{t('common.name')}</th><th>{t('common.role')}</th><th>{t('common.status')}</th><th>{t('admins.totp')}</th><th>{t('admins.lastLogin')}</th><th></th></tr></thead>
+        <thead><tr><th>{t('common.email')}</th><th class="hide-m">{t('common.name')}</th><th>{t('common.role')}</th><th>{t('common.status')}</th><th class="hide-m">{t('admins.totp')}</th><th class="hide-m">{t('admins.lastLogin')}</th><th></th></tr></thead>
         <tbody>{#each items as a (a.id)}
           {@const me = a.id === session.admin?.id}
           <tr>
-            <td class="mono small">{a.email}{#if me} <span class="badge plain">{t('admins.you')}</span>{/if}</td><td>{a.name}</td>
+            <td class="mono small">{a.email}{#if me} <span class="badge plain">{t('admins.you')}</span>{/if}</td><td class="hide-m">{a.name}</td>
             <td><StatusBadge status={a.role} label={t(`admins.${a.role}`)} /></td>
             <td><StatusBadge status={a.lockedUntil ? 'locked' : a.status} label={a.lockedUntil ? t('auth.locked') : a.status} /></td>
-            <td>{#if a.totpEnabled}<span class="badge ok">{t('account.totpOn')}</span>{:else}<span class="badge">{t('account.totpOff')}</span>{/if}</td>
-            <td><Time value={a.lastLoginAt} /></td>
+            <td class="hide-m">{#if a.totpEnabled}<span class="badge ok">{t('account.totpOn')}</span>{:else}<span class="badge">{t('account.totpOff')}</span>{/if}</td>
+            <td class="hide-m"><Time value={a.lastLoginAt} /></td>
             <td style="text-align:right">
               {#if !me}
                 <RowMenu label={t('common.actions')} items={[

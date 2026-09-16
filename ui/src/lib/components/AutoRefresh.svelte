@@ -51,5 +51,5 @@
   .poll { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
   .select.sm { min-height: 32px; padding: 4px 28px 4px 10px; font-size: .85rem; width: auto; }
   .busy { color: var(--accent); }
-  @media (max-width: 900px) { .word { display: none; } }
+  @media (max-width: 900px) { .word { display: none; } .poll :global(.badge) { display: none; } }
 </style>
