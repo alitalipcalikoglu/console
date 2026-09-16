@@ -4,9 +4,9 @@
   let { icon = 'inbox', title, desc, children } = $props();
 </script>
 
-<div class="empty">
+<div class="state">
   <Icon name={icon} size={40} />
   <h3>{title}</h3>
   {#if desc}<p class="small">{desc}</p>{/if}
-  {#if children}<div style="margin-top:14px">{@render children()}</div>{/if}
+  {#if children}<div class="state-actions">{@render children()}</div>{/if}
 </div>

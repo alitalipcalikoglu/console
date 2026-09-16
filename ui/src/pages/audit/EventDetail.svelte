@@ -23,7 +23,7 @@
 
 <Page title={t('ev.event')} back="/audit/{sid}">
   {#snippet actions()}<button class="btn icon" onclick={() => res.load()} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
-  {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} />
+  {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} boxed />
   {:else if !e}<Skeleton rows={10} />
   {:else}
     <div class="stack">

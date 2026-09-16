@@ -24,7 +24,7 @@
     {#if m?.status === 'failed' && session.isAdmin}<button class="btn primary" onclick={retry}><Icon name="refresh" size={16} /> {t('notify.retry')}</button>{/if}
     <button class="btn icon" onclick={() => res.load()} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>
   {/snippet}
-  {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} />
+  {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} boxed />
   {:else if !m}<Skeleton rows={8} />
   {:else}
     <div class="card"><div class="card-body">

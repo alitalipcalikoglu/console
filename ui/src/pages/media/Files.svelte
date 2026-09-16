@@ -101,7 +101,7 @@
     {/each}
   {/if}
 
-  {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} />
+  {#if list.error}<ErrorBox error={list.error} onretry={() => list.load()} boxed />
   {:else if list.loading && !items.length}<Skeleton rows={4} height={90} />
   {:else if !items.length}<div class="card"><Empty icon="image" title={t('media.emptyTitle')} desc={t('media.emptyDesc')} /></div>
   {:else if view === 'grid'}

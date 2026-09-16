@@ -5,6 +5,6 @@
 
 <div class="card stat">
   <div class="label">{label}</div>
-  <div class="value {tone ? `${tone}-text` : ''}">{value ?? '–'}</div>
+  <div class="value {tone && value != null && value !== '–' ? `${tone}-text` : ''}">{value ?? '–'}</div>
   {#if sub}<div class="sub">{sub}</div>{/if}
 </div>

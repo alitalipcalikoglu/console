@@ -35,7 +35,7 @@
   {#snippet actions()}<AutoRefresh {sid} /><button class="btn icon" onclick={refreshNow} disabled={service.inFlight} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
   <ServiceTabs type="gateway" {sid} />
   <PollStats {sid} />
-  {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} />
+  {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} boxed />
   {:else if !d}<Skeleton rows={5} />
   {:else}
     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:20px">

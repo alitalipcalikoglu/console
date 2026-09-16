@@ -2,6 +2,7 @@
   import Page from '../../lib/components/Page.svelte';
   import Panel from '../../lib/components/Panel.svelte';
   import Icon from '../../lib/components/Icon.svelte';
+  import Empty from '../../lib/components/Empty.svelte';
   import Skeleton from '../../lib/components/Skeleton.svelte';
   import ErrorBox from '../../lib/components/ErrorBox.svelte';
   import StatusBadge from '../../lib/components/StatusBadge.svelte';
@@ -49,13 +50,13 @@
   {#if res.error}
     {#if notFound && session.isAdmin}
       <div class="card"><div class="card-body stack"><p>{t('common.notFoundDesc')}</p><div><button class="btn" onclick={() => run(() => api.post(`${base}/restore`), t('media.restored'))}><Icon name="refresh" size={16} /> {t('media.restore')}</button></div></div></div>
-    {:else}<ErrorBox error={res.error} onretry={() => res.load()} />{/if}
+    {:else}<ErrorBox error={res.error} onretry={() => res.load()} boxed />{/if}
   {:else if !f}<Skeleton rows={6} height={60} />
   {:else}
     <div class="detail">
       <div class="card"><div class="card-body" style="display:grid;place-items:center;min-height:240px;background:var(--surface-2);border-radius:var(--radius)">
         {#if isImage}<img src="/api/services/{sid}/media/files/{id}/bytes/{f.width > 1600 ? 'large' : 'original'}" alt={f.name} style="max-width:100%;max-height:60vh;border-radius:6px" />
-        {:else}<div class="empty"><Icon name="file" size={40} /><h3>{t('media.noPreview')}</h3><p class="small">{f.mime}</p></div>{/if}
+        {:else}<Empty icon="file" title={t('media.noPreview')} desc={f.mime} />{/if}
       </div></div>
       <div class="stack">
         <div class="card"><div class="card-body">
