@@ -15,6 +15,7 @@
 | `service.` | `settings.update` (auto-refresh change, with the new `polling` value) |
 | `audit.` | `chain.verify` (result), `events.export` (format and filter) on the audit service pages |
 | `shortlink.` | `link.create` (url), `link.update` (patch), `link.delete` |
+| `flags.` | `flag.create` (kind), `flag.update` (patch), `flag.delete`, `env.update` (environment and patch), `env.copy` (from, to) |
 
 Reads are not recorded; writes always are, including failed attempts to sign in.
 
