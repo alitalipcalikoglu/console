@@ -1,5 +1,6 @@
 import { AuditClient } from './audit-client.js';
 import { AuthClient } from './auth-client.js';
+import { FlagsClient } from './flags-client.js';
 import { GatewayClient } from './gateway-client.js';
 import { MediaClient } from './media-client.js';
 import { NotifyClient } from './notify-client.js';
@@ -34,6 +35,7 @@ export class ServiceClients {
       case 'gateway': return new GatewayClient(def, o);
       case 'audit': return new AuditClient(def, o);
       case 'shortlink': return new ShortlinkClient(def, o);
+      case 'flags': return new FlagsClient(def, o);
       default: throw new Error(`unknown service type ${def.type}`);
     }
   }

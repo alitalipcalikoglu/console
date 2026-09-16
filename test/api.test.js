@@ -19,7 +19,7 @@ const fake = createServer((req, res) => {
     const json = (/** @type {number} */ status, /** @type {unknown} */ data) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
     if (p === '/health') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/ready') return res.writeHead(200).end('{"status":"ok"}');
-    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\n');
+    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\nflags_total{state="active"} 3\nflags_total{state="archived"} 1\nflags_enabled{env="prod"} 2\nflags_evaluations_total{env="prod"} 77\n');
     if (p === '/v1/messages' && req.method === 'GET') return json(200, { items: [{ id: 'm1', status: 'failed' }], nextCursor: null });
     if (p === '/v1/messages/m1/retry') return json(200, { id: 'm1', status: 'queued' });
     if (p === '/v1/messages' && req.method === 'POST') return json(202, { id: 'm2', status: 'queued' });
@@ -43,6 +43,7 @@ const fake = createServer((req, res) => {
     if (p === '/v1/events' && req.method === 'GET') return json(200, { items: [{ id: 'e1', seq: 42, action: 'auth.login', outcome: 'failure', source: 'auth' }], nextCursor: null });
     if (p === '/v1/events/export') return res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'content-disposition': 'attachment; filename="audit-x.ndjson"' }).end('{"seq":1}\n{"seq":2}\n');
     if (p === '/v1/events/e1') return json(200, { event: { id: 'e1', seq: 42, action: 'auth.login', meta: { k: 1 } } });
+    if (p === '/v1/stats' && String(req.headers.authorization).endsWith('f'.repeat(40))) return json(200, { flags: { total: 4, archived: 1 }, environments: [{ env: 'prod', version: 5, enabled: 2, evaluations: 77 }] });
     if (p === '/v1/stats' && String(req.headers.authorization).endsWith('s'.repeat(40))) return json(200, { days: 7, links: { total: 10, active: 9, clicks: 120 }, clicksInWindow: 40, topLinks: [] });
     if (p === '/v1/stats') return json(200, { windowHours: 24, total: 42, byOutcome: { success: 40, failure: 2 }, bySource: [], topActions: [], topActors: [], topFailures: [] });
     if (p === '/v1/chain/head') return json(200, { seq: 42, hash: 'ab'.repeat(32) });
@@ -54,6 +55,16 @@ const fake = createServer((req, res) => {
     if (p === '/v1/links/abc1234' && req.method === 'PATCH') return json(200, { link: { code: 'abc1234', enabled: false, status: 'disabled' } });
     if (p === '/v1/links/abc1234' && req.method === 'DELETE') return res.writeHead(204).end();
     if (p === '/v1/links/abc1234/qr') return res.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    if (p === '/v1/environments') return json(200, { items: [{ env: 'dev', version: 1 }, { env: 'prod', version: 5 }] });
+    if (p === '/v1/flags' && req.method === 'GET') return json(200, { items: [{ key: 'checkout.new', kind: 'boolean', environments: { prod: { enabled: true } } }], nextCursor: null });
+    if (p === '/v1/flags' && req.method === 'POST') return json(201, { flag: { key: JSON.parse(body).key, kind: 'boolean' } });
+    if (p === '/v1/flags/checkout.new' && req.method === 'GET') return json(200, { flag: { key: 'checkout.new', kind: 'boolean', environments: {} } });
+    if (p === '/v1/flags/checkout.new/history') return json(200, { items: [{ id: 3, action: 'env.update' }], nextBefore: null });
+    if (p === '/v1/flags/checkout.new' && req.method === 'PATCH') return json(200, { flag: { key: 'checkout.new', archived: true } });
+    if (p === '/v1/flags/checkout.new' && req.method === 'DELETE') return res.writeHead(204).end();
+    if (p === '/v1/flags/checkout.new/envs/prod' && req.method === 'PATCH') return json(200, { env: 'prod', state: { enabled: true, percentage: 25 } });
+    if (p === '/v1/flags/checkout.new/envs/staging/copy') return json(200, { env: 'prod', state: { enabled: true } });
+    if (p === '/v1/evaluate' && req.method === 'POST') return json(200, { env: 'prod', version: 5, flags: { 'checkout.new': { value: true, reason: 'rule', ruleId: 'staff' } } });
     if (p === '/v1/users' && req.method === 'POST') return json(409, { error: { code: 'EMAIL_TAKEN', message: 'exists' } });
     json(404, { error: { code: 'NOT_FOUND', message: 'nope' } });
   });
@@ -70,7 +81,7 @@ let origin = '';
 before(async () => {
   await new Promise((r) => fake.listen(0, '127.0.0.1', () => r(undefined)));
   origin = `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}`;
-  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin }, publicDir: pub });
+  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin, flags: origin }, publicDir: pub });
 });
 after(async () => { await t.app.close(); fake.close(); rmSync(pub, { recursive: true, force: true }); });
 
@@ -168,7 +179,8 @@ test('overview aggregates health and parsed metrics per service', async () => {
   const res = await t.app.inject({ url: '/api/services/overview', headers: { cookie } });
   assert.equal(res.statusCode, 200);
   const items = res.json().items;
-  assert.equal(items.length, 6);
+  assert.equal(items.length, 7);
+  assert.deepEqual(items.find((/** @type {any} */ i) => i.id === 'flags').summary.enabledByEnv, { prod: 2 });
   assert.equal(items.find((/** @type {any} */ i) => i.id === 'shortlink').summary.activeLinks, 9);
   const audit = items.find((/** @type {any} */ i) => i.id === 'audit');
   assert.equal(audit.summary.total, 42);
@@ -323,4 +335,39 @@ test('shortlink: list, create, detail with stats, patch, delete, QR proxy, overv
   const log = await t.app.inject({ url: '/api/audit?action=shortlink.', headers: { cookie } });
   assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 3), ['shortlink.link.delete', 'shortlink.link.update', 'shortlink.link.create']);
   assert.equal(log.json().items[2].target, 'new1234');
+});
+
+test('flags: environments, list, create, detail with history, env patch, copy, evaluate, delete', async () => {
+  const { cookie } = await signIn(t);
+  const viewer = await signIn(t, { email: 'viewer4@console.local', role: 'viewer' });
+  seen.length = 0;
+  let res = await t.app.inject({ url: '/api/services/flags/flags/environments', headers: { cookie } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().items[1].env, 'prod');
+  assert.equal(seen.at(-1)?.headers.authorization, `Bearer ${'f'.repeat(40)}`);
+  res = await t.app.inject({ url: '/api/services/flags/flags/flags?archived=false&q=check', headers: { cookie } });
+  assert.equal(res.json().items[0].key, 'checkout.new');
+  assert.equal(seen.at(-1)?.url, '/v1/flags?q=check&archived=false');
+  assert.equal((await t.app.inject({ method: 'POST', url: '/api/services/flags/flags/flags', headers: { cookie: viewer.cookie, ...CSRF }, payload: { key: 'x.y', kind: 'boolean' } })).statusCode, 403);
+  res = await t.app.inject({ method: 'POST', url: '/api/services/flags/flags/flags', headers: { cookie, ...CSRF }, payload: { key: 'x.y', kind: 'boolean', value: true, offValue: false, tags: ['t'] } });
+  assert.equal(res.statusCode, 201, res.body);
+  res = await t.app.inject({ url: '/api/services/flags/flags/flags/checkout.new', headers: { cookie } });
+  assert.equal(res.json().flag.key, 'checkout.new');
+  assert.equal(res.json().history[0].action, 'env.update');
+  res = await t.app.inject({ method: 'PATCH', url: '/api/services/flags/flags/flags/checkout.new/envs/prod', headers: { cookie, ...CSRF }, payload: { enabled: true, percentage: 25, rules: [] } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().state.percentage, 25);
+  res = await t.app.inject({ method: 'POST', url: '/api/services/flags/flags/flags/checkout.new/envs/staging/copy', headers: { cookie, ...CSRF }, payload: { to: 'prod' } });
+  assert.equal(res.statusCode, 200, res.body);
+  res = await t.app.inject({ method: 'POST', url: '/api/services/flags/flags/evaluate', headers: { cookie: viewer.cookie, ...CSRF }, payload: { env: 'prod', context: { email: 'a@b.c' }, keys: ['checkout.new'] } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().flags['checkout.new'].ruleId, 'staff');
+  assert.equal(JSON.parse(seen.at(-1)?.body ?? '{}').details, true);
+  assert.equal((await t.app.inject({ method: 'PATCH', url: '/api/services/flags/flags/flags/checkout.new', headers: { cookie, ...CSRF }, payload: { archived: true } })).json().flag.archived, true);
+  assert.equal((await t.app.inject({ method: 'DELETE', url: '/api/services/flags/flags/flags/checkout.new', headers: { cookie, ...CSRF } })).statusCode, 204);
+  res = await t.app.inject({ url: '/api/services/flags/flags/stats', headers: { cookie } });
+  assert.equal(res.json().environments[0].evaluations, 77);
+  const log = await t.app.inject({ url: '/api/audit?action=flags.', headers: { cookie } });
+  assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 5), ['flags.flag.delete', 'flags.flag.update', 'flags.env.copy', 'flags.env.update', 'flags.flag.create']);
+  assert.deepEqual(log.json().items[2].meta, { service: 'flags', from: 'staging', to: 'prod' });
 });

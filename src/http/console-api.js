@@ -7,6 +7,7 @@ import { AdminService } from '../domain/admin-service.js';
 import { ConsoleError } from '../domain/errors.js';
 import { AuditClient } from '../services/audit-client.js';
 import { AuthClient } from '../services/auth-client.js';
+import { FlagsClient } from '../services/flags-client.js';
 import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
@@ -68,6 +69,18 @@ class Schemas {
     expiresAt: { type: 'string', maxLength: 40, nullable: true }, maxClicks: { type: 'integer', minimum: 1, maximum: 1000000000, nullable: true },
     tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 40 } }, note: { type: 'string', maxLength: 500, nullable: true },
   };
+  static flagsQuery = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      q: { type: 'string', maxLength: 120 }, tag: { type: 'string', maxLength: 40 }, kind: { type: 'string', enum: ['boolean', 'string', 'number', 'json'] }, archived: { type: 'string', enum: ['true', 'false'] },
+      limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' }, cursor: { type: 'string', maxLength: 80 }, before: { type: 'string', pattern: '^[0-9]{1,15}$' },
+    },
+  };
+  static flagsEnv = { type: 'string', pattern: '^[a-z][a-z0-9-]{0,31}$' };
+  static flagsCreate = Schemas.body(['key', 'kind'], { key: { type: 'string', pattern: '^[a-z0-9]+([.\\-_][a-z0-9]+)*$', maxLength: 80 }, kind: { type: 'string', enum: ['boolean', 'string', 'number', 'json'] }, description: { type: 'string', maxLength: 500 }, tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 40 } }, value: {}, offValue: {}, enabled: { type: 'boolean' } });
+  static flagsPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: { description: { type: 'string', maxLength: 500 }, tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 40 } }, archived: { type: 'boolean' }, reshuffle: { type: 'boolean' } } };
+  static flagsEnvPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: { enabled: { type: 'boolean' }, value: {}, offValue: {}, percentage: { type: 'integer', minimum: 0, maximum: 100 }, rules: { type: 'array', maxItems: 100 } } };
+  static flagsEvaluate = Schemas.body(['env'], { env: Schemas.flagsEnv, context: { type: 'object', additionalProperties: false, properties: { userId: { type: 'string', maxLength: 128 }, email: { type: 'string', maxLength: 254 }, attrs: { type: 'object', maxProperties: 32, additionalProperties: { type: 'string', maxLength: 128 } } } }, keys: { type: 'array', maxItems: 200, items: { type: 'string', maxLength: 80 } } });
   static paging = { type: 'object', additionalProperties: true, properties: { limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' }, cursor: { type: 'string', maxLength: 200 }, status: { type: 'string', maxLength: 20 }, email: { type: 'string', maxLength: 254 }, before: { type: 'string', maxLength: 30 }, action: { type: 'string', maxLength: 60 } } };
 }
 
@@ -550,6 +563,53 @@ export class ConsoleApi {
       return reply.send(Buffer.from(await res.arrayBuffer()));
     });
     api.get('/services/:sid/shortlink/stats', { schema: { params: P, querystring: SQ } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), ShortlinkClient).stats(num(query(request).days)); });
+
+    // ---------------------------------------------------------------- flags
+    const FQ = Schemas.flagsQuery;
+    api.get('/services/:sid/flags/environments', { schema: { params: P } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), FlagsClient).environments(); });
+    api.get('/services/:sid/flags/stats', { schema: { params: P } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), FlagsClient).stats(); });
+    api.get('/services/:sid/flags/flags', { schema: { params: P, querystring: FQ } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), FlagsClient).listFlags(query(request)); });
+    api.post('/services/:sid/flags/flags', { schema: { params: P, body: Schemas.flagsCreate } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const body = /** @type {any} */ (request.body);
+      const out = await this.clients.get(sid(request), FlagsClient).createFlag(body);
+      record(request, 'flags.flag.create', body.key, { service: sid(request), kind: body.kind });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/flags/flags/:id', { schema: { params: PI } }, async (request) => {
+      s.requireSession(request);
+      const c = this.clients.get(sid(request), FlagsClient);
+      const [flag, history] = await Promise.all([c.getFlag(pid(request)), c.history(pid(request), { limit: 20 })]);
+      return { .../** @type {any} */ (flag), history: /** @type {any} */ (history).items, historyNextBefore: /** @type {any} */ (history).nextBefore };
+    });
+    api.get('/services/:sid/flags/flags/:id/history', { schema: { params: PI, querystring: FQ } }, async (request) => { s.requireSession(request); const q = query(request); return this.clients.get(sid(request), FlagsClient).history(pid(request), { limit: num(q.limit), before: q.before }); });
+    api.get('/services/:sid/flags/history', { schema: { params: P, querystring: FQ } }, async (request) => { s.requireSession(request); const q = query(request); return this.clients.get(sid(request), FlagsClient).history(null, { limit: num(q.limit), before: q.before }); });
+    api.patch('/services/:sid/flags/flags/:id', { schema: { params: PI, body: Schemas.flagsPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await this.clients.get(sid(request), FlagsClient).patchFlag(pid(request), /** @type {any} */ (request.body));
+      record(request, 'flags.flag.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/flags/flags/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await this.clients.get(sid(request), FlagsClient).deleteFlag(pid(request));
+      record(request, 'flags.flag.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.patch('/services/:sid/flags/flags/:id/envs/:sub', { schema: { params: PIS, body: Schemas.flagsEnvPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await this.clients.get(sid(request), FlagsClient).patchEnv(pid(request), psub(request), /** @type {any} */ (request.body));
+      record(request, 'flags.env.update', pid(request), { service: sid(request), env: psub(request), patch: request.body });
+      return out;
+    });
+    api.post('/services/:sid/flags/flags/:id/envs/:sub/copy', { schema: { params: PIS, body: Schemas.body(['to'], { to: Schemas.flagsEnv }) } }, async (request) => {
+      s.requireAdmin(request);
+      const to = /** @type {{ to: string }} */ (request.body).to;
+      const out = await this.clients.get(sid(request), FlagsClient).copyEnv(pid(request), psub(request), to);
+      record(request, 'flags.env.copy', pid(request), { service: sid(request), from: psub(request), to });
+      return out;
+    });
+    api.post('/services/:sid/flags/evaluate', { schema: { params: P, body: Schemas.flagsEvaluate } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), FlagsClient).evaluate(/** @type {any} */ (request.body)); });
 
     return api;
   }

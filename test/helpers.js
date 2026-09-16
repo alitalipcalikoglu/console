@@ -13,7 +13,7 @@ export function testDb() {
   return new Database(':memory:');
 }
 
-/** @param {Partial<Record<'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink', string>>} [urls] */
+/** @param {Partial<Record<'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink'|'flags', string>>} [urls] */
 export function servicesDoc(urls = {}) {
   return {
     services: [
@@ -23,11 +23,12 @@ export function servicesDoc(urls = {}) {
       { id: 'gateway', type: 'gateway', url: urls.gateway ?? 'http://127.0.0.1:1', metricsTokenEnv: 'GATEWAY_METRICS_TOKEN' },
       { id: 'audit', type: 'audit', url: urls.audit ?? 'http://127.0.0.1:1', apiKeyEnv: 'AUDIT_API_KEY' },
       { id: 'shortlink', type: 'shortlink', url: urls.shortlink ?? 'http://127.0.0.1:1', apiKeyEnv: 'SHORTLINK_API_KEY' },
+      { id: 'flags', type: 'flags', url: urls.flags ?? 'http://127.0.0.1:1', apiKeyEnv: 'FLAGS_API_KEY' },
     ],
   };
 }
 
-export const servicesEnv = { NOTIFY_API_KEY: SECRET, AUTH_API_KEY: 'a'.repeat(40), MEDIA_API_KEY: 'm'.repeat(40), GATEWAY_METRICS_TOKEN: 'g'.repeat(40), AUDIT_API_KEY: 'd'.repeat(40), SHORTLINK_API_KEY: 's'.repeat(40) };
+export const servicesEnv = { NOTIFY_API_KEY: SECRET, AUTH_API_KEY: 'a'.repeat(40), MEDIA_API_KEY: 'm'.repeat(40), GATEWAY_METRICS_TOKEN: 'g'.repeat(40), AUDIT_API_KEY: 'd'.repeat(40), SHORTLINK_API_KEY: 's'.repeat(40), FLAGS_API_KEY: 'f'.repeat(40) };
 
 /** @param {Parameters<typeof servicesDoc>[0]} [urls] */
 export function testRegistry(urls) {
