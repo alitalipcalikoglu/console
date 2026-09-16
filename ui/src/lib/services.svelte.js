@@ -2,7 +2,7 @@ import { untrack } from 'svelte';
 import { api } from './api.js';
 
 /** @typedef {{ enabled: boolean, intervalSec: number }} Polling */
-/** @typedef {{ id: string, type: 'notify'|'auth'|'media'|'gateway', label: string, url: string, publicUrl: string|null, hasMetrics: boolean, polling: Polling }} ServiceInfo */
+/** @typedef {{ id: string, type: 'notify'|'auth'|'media'|'gateway'|'audit', label: string, url: string, publicUrl: string|null, hasMetrics: boolean, polling: Polling }} ServiceInfo */
 /** @typedef {ServiceInfo & { health: boolean, ready: boolean, readyDetail: unknown, latencyMs: number, summary: any }} ServiceOverview */
 
 /** Configured services and their latest health, shared by the navigation and the overview page. */

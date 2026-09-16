@@ -16,6 +16,8 @@
   import Files from './pages/media/Files.svelte';
   import FileDetail from './pages/media/FileDetail.svelte';
   import Gateway from './pages/gateway/Gateway.svelte';
+  import Events from './pages/audit/Events.svelte';
+  import EventDetail from './pages/audit/EventDetail.svelte';
   import Audit from './pages/Audit.svelte';
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
@@ -59,6 +61,8 @@
       {:else if match.pattern === '/media/:sid'}<Files sid={match.params.sid} />
       {:else if match.pattern === '/media/:sid/files/:id'}<FileDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/gateway/:sid'}<Gateway sid={match.params.sid} />
+      {:else if match.pattern === '/audit/:sid'}<Events sid={match.params.sid} />
+      {:else if match.pattern === '/audit/:sid/events/:id'}<EventDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
       {:else if match.pattern === '/account'}<Account />
