@@ -19,7 +19,7 @@ const fake = createServer((req, res) => {
     const json = (/** @type {number} */ status, /** @type {unknown} */ data) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
     if (p === '/health') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/ready') return res.writeHead(200).end('{"status":"ok"}');
-    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\n');
+    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\n');
     if (p === '/v1/messages' && req.method === 'GET') return json(200, { items: [{ id: 'm1', status: 'failed' }], nextCursor: null });
     if (p === '/v1/messages/m1/retry') return json(200, { id: 'm1', status: 'queued' });
     if (p === '/v1/messages' && req.method === 'POST') return json(202, { id: 'm2', status: 'queued' });
@@ -40,6 +40,12 @@ const fake = createServer((req, res) => {
     if (p === '/files/f2/original') return res.writeHead(200, { 'content-type': 'image/svg+xml', 'content-disposition': 'inline; filename="evil.svg"' }).end('<svg onload="alert(1)"/>');
     if (p === '/v1/files/f1' && req.method === 'DELETE') return res.writeHead(204).end();
     if (p === '/v1/uploads') return json(201, { token: 't', uploadUrl: 'https://media/v1/uploads/t' });
+    if (p === '/v1/events' && req.method === 'GET') return json(200, { items: [{ id: 'e1', seq: 42, action: 'auth.login', outcome: 'failure', source: 'auth' }], nextCursor: null });
+    if (p === '/v1/events/export') return res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'content-disposition': 'attachment; filename="audit-x.ndjson"' }).end('{"seq":1}\n{"seq":2}\n');
+    if (p === '/v1/events/e1') return json(200, { event: { id: 'e1', seq: 42, action: 'auth.login', meta: { k: 1 } } });
+    if (p === '/v1/stats') return json(200, { windowHours: 24, total: 42, byOutcome: { success: 40, failure: 2 }, bySource: [], topActions: [], topActors: [], topFailures: [] });
+    if (p === '/v1/chain/head') return json(200, { seq: 42, hash: 'ab'.repeat(32) });
+    if (p === '/v1/chain/verify') return json(200, { ok: true, checked: 42, fromSeq: 1, toSeq: 42, firstBroken: null, head: { seq: 42, hash: 'ab'.repeat(32) } });
     if (p === '/v1/users' && req.method === 'POST') return json(409, { error: { code: 'EMAIL_TAKEN', message: 'exists' } });
     json(404, { error: { code: 'NOT_FOUND', message: 'nope' } });
   });
@@ -56,7 +62,7 @@ let origin = '';
 before(async () => {
   await new Promise((r) => fake.listen(0, '127.0.0.1', () => r(undefined)));
   origin = `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}`;
-  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin }, publicDir: pub });
+  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin }, publicDir: pub });
 });
 after(async () => { await t.app.close(); fake.close(); rmSync(pub, { recursive: true, force: true }); });
 
@@ -154,7 +160,11 @@ test('overview aggregates health and parsed metrics per service', async () => {
   const res = await t.app.inject({ url: '/api/services/overview', headers: { cookie } });
   assert.equal(res.statusCode, 200);
   const items = res.json().items;
-  assert.equal(items.length, 4);
+  assert.equal(items.length, 5);
+  const audit = items.find((/** @type {any} */ i) => i.id === 'audit');
+  assert.equal(audit.summary.total, 42);
+  assert.equal(audit.summary.headSeq, 42);
+  assert.deepEqual(audit.summary.bySource, { auth: 40 });
   const notify = items.find((/** @type {any} */ i) => i.id === 'notify');
   assert.equal(notify.health, true);
   assert.equal(notify.summary.queued, 3);
@@ -242,4 +252,32 @@ test('PATCH /api/services/:sid/settings writes polling to services.json, audited
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('audit service: events with filters, detail, stats, chain, streamed export (audited)', async () => {
+  const { cookie } = await signIn(t);
+  seen.length = 0;
+  let res = await t.app.inject({ url: '/api/services/audit/audit/events?actionPrefix=auth.&outcome=failure&limit=100', headers: { cookie } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().items[0].id, 'e1');
+  assert.equal(seen.at(-1)?.url, '/v1/events?actionPrefix=auth.&outcome=failure&limit=100');
+  assert.equal(seen.at(-1)?.headers.authorization, `Bearer ${'d'.repeat(40)}`, 'audit key injected');
+  assert.equal((await t.app.inject({ url: '/api/services/audit/audit/events?bogus=1', headers: { cookie } })).statusCode, 400, 'unknown filters rejected');
+  assert.equal((await t.app.inject({ url: '/api/services/audit/audit/events/e1', headers: { cookie } })).json().event.meta.k, 1);
+  res = await t.app.inject({ url: '/api/services/audit/audit/stats?hours=24', headers: { cookie } });
+  assert.equal(res.json().total, 42);
+  assert.equal(seen.at(-1)?.url, '/v1/stats?hours=24');
+  assert.equal((await t.app.inject({ url: '/api/services/audit/audit/chain/head', headers: { cookie } })).json().seq, 42);
+  res = await t.app.inject({ url: '/api/services/audit/audit/chain/verify?fromSeq=1', headers: { cookie } });
+  assert.equal(res.json().ok, true);
+  res = await t.app.inject({ url: '/api/services/audit/audit/events/export?format=csv&source=auth', headers: { cookie } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(seen.at(-1)?.url, '/v1/events/export?source=auth&format=csv');
+  assert.equal(res.body, '{"seq":1}\n{"seq":2}\n', 'body streamed through');
+  assert.match(String(res.headers['content-disposition']), /^attachment/);
+  assert.match(String(res.headers['content-security-policy']), /sandbox/);
+  const log = await t.app.inject({ url: '/api/audit?action=audit.', headers: { cookie } });
+  assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 2), ['audit.events.export', 'audit.chain.verify']);
+  assert.deepEqual(log.json().items[0].meta, { format: 'csv', filter: { source: 'auth' } });
+  assert.equal((await t.app.inject({ url: '/api/services/notify/audit/events', headers: { cookie } })).statusCode, 404, 'wrong service type');
 });

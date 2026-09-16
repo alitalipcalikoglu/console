@@ -5,6 +5,7 @@ import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { AdminService } from '../domain/admin-service.js';
 import { ConsoleError } from '../domain/errors.js';
+import { AuditClient } from '../services/audit-client.js';
 import { AuthClient } from '../services/auth-client.js';
 import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
@@ -42,6 +43,17 @@ class Schemas {
   static serviceParams = { type: 'object', properties: { sid: Schemas.sid }, required: ['sid'] };
   static serviceIdParams = { type: 'object', properties: { sid: Schemas.sid, id: Schemas.id }, required: ['sid', 'id'] };
   static serviceIdSubParams = { type: 'object', properties: { sid: Schemas.sid, id: Schemas.id, sub: Schemas.id }, required: ['sid', 'id', 'sub'] };
+  static auditQuery = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      source: { type: 'string', maxLength: 64 }, action: { type: 'string', maxLength: 120 }, actionPrefix: { type: 'string', maxLength: 120 },
+      outcome: { type: 'string', enum: ['success', 'failure', 'denied'] }, actorType: { type: 'string', maxLength: 32 }, actorId: { type: 'string', maxLength: 128 },
+      targetType: { type: 'string', maxLength: 32 }, targetId: { type: 'string', maxLength: 128 }, ip: { type: 'string', maxLength: 45 }, requestId: { type: 'string', maxLength: 128 },
+      from: { type: 'string', maxLength: 40 }, to: { type: 'string', maxLength: 40 },
+      limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' }, cursor: { type: 'string', maxLength: 200 },
+      format: { type: 'string', enum: ['ndjson', 'csv'] }, hours: { type: 'string', pattern: '^[0-9]{1,3}$' }, fromSeq: { type: 'string', pattern: '^[0-9]{1,16}$' }, toSeq: { type: 'string', pattern: '^[0-9]{1,16}$' },
+    },
+  };
   static paging = { type: 'object', additionalProperties: true, properties: { limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' }, cursor: { type: 'string', maxLength: 200 }, status: { type: 'string', maxLength: 20 }, email: { type: 'string', maxLength: 254 }, before: { type: 'string', maxLength: 30 }, action: { type: 'string', maxLength: 60 } } };
 }
 
@@ -451,6 +463,36 @@ export class ConsoleApi {
       const out = await this.clients.get(sid(request), MediaClient).createTicket(/** @type {any} */ (request.body));
       record(request, 'media.ticket.create', null, { service: sid(request) });
       return reply.code(201).send(out);
+    });
+
+    // ---------------------------------------------------------------- audit service
+    const AQ = Schemas.auditQuery;
+    api.get('/services/:sid/audit/events', { schema: { params: P, querystring: AQ } }, async (request) => {
+      s.requireSession(request);
+      return this.clients.get(sid(request), AuditClient).listEvents(query(request));
+    });
+    api.get('/services/:sid/audit/events/export', { schema: { params: P, querystring: AQ }, logLevel: 'warn' }, async (request, reply) => {
+      s.requireSession(request);
+      const q = query(request);
+      const format = /** @type {'ndjson'|'csv'} */ (q.format ?? 'ndjson');
+      const res = await this.clients.get(sid(request), AuditClient).export(q, format);
+      if (!res.ok) throw new ServiceError(`${sid(request)} export responded ${res.status}`, { statusCode: res.status, service: sid(request) });
+      const { format: _f, ...filter } = q;
+      record(request, 'audit.events.export', sid(request), { format, filter });
+      reply.header('content-type', res.headers.get('content-type') ?? 'application/octet-stream');
+      reply.header('content-disposition', res.headers.get('content-disposition') ?? `attachment; filename="audit.${format}"`);
+      reply.header('content-security-policy', "default-src 'none'; sandbox");
+      return reply.send(res.body ? /** @type {any} */ (await import('node:stream')).Readable.fromWeb(/** @type {any} */ (res.body)) : Buffer.alloc(0));
+    });
+    api.get('/services/:sid/audit/events/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), AuditClient).getEvent(pid(request)); });
+    api.get('/services/:sid/audit/stats', { schema: { params: P, querystring: AQ } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), AuditClient).stats(num(query(request).hours)); });
+    api.get('/services/:sid/audit/chain/head', { schema: { params: P } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), AuditClient).chainHead(); });
+    api.get('/services/:sid/audit/chain/verify', { schema: { params: P, querystring: AQ } }, async (request) => {
+      s.requireSession(request);
+      const q = query(request);
+      const out = /** @type {any} */ (await this.clients.get(sid(request), AuditClient).verify({ fromSeq: num(q.fromSeq), toSeq: num(q.toSeq) }));
+      record(request, 'audit.chain.verify', sid(request), { ok: out?.ok, checked: out?.checked, firstBroken: out?.firstBroken ?? null });
+      return out;
     });
 
     return api;
