@@ -130,7 +130,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .page-head > .grow { flex: 1 1 260px; }
 .page-head > .row { flex: 0 1 auto; justify-content: flex-end; }
-@media (max-width: 1100px) { .page-head { flex-direction: column; align-items: stretch; } .page-head > .row { justify-content: flex-start; } }
+@media (max-width: 1100px) { .page-head { flex-direction: column; align-items: stretch; } .page-head > .grow { flex: 0 0 auto; } .page-head > .row { justify-content: flex-start; } }
 .page-head .desc { color: var(--text-2); margin-top: 4px; }
 .bottom-nav { display: none; }
 @media (max-width: 900px) {

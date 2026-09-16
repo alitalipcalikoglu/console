@@ -71,7 +71,7 @@
             <p class="small">{t('account.scan')}</p>
             <div class="qr">{@html enrol.svg}</div>
             <div class="row wrap small"><span class="muted">{t('account.secret')}:</span><code style="word-break:break-all">{enrol.secret}</code><CopyButton text={enrol.secret} /></div>
-            <div class="field"><label for="tc">{t('login.code')}</label><input id="tc" class="input mono" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" bind:value={code} required /></div>
+            <div class="field"><label for="tc">{t('login.code')}</label><input id="tc" class="input mono" inputmode="numeric" pattern={'[0-9]{6}'} maxlength="6" autocomplete="one-time-code" bind:value={code} required /></div>
             <div class="row"><button class="btn primary" type="submit" disabled={busy || code.length !== 6}>{t('account.enableTotp')}</button><button class="btn ghost" type="button" onclick={() => { enrol = null; }}>{t('common.cancel')}</button></div>
           </form>
         {:else}

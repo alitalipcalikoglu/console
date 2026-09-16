@@ -41,7 +41,7 @@
             <td><StatusBadge status={a.lockedUntil ? 'locked' : a.status} label={a.lockedUntil ? t('auth.locked') : a.status} /></td>
             <td>{#if a.totpEnabled}<span class="badge ok">{t('account.totpOn')}</span>{:else}<span class="badge">{t('account.totpOff')}</span>{/if}</td>
             <td><Time value={a.lastLoginAt} /></td>
-            <td><div class="row" style="justify-content:flex-end">
+            <td><div class="row wrap" style="justify-content:flex-end;min-width:280px">
               {#if !me}
                 <button class="btn sm" onclick={() => run(() => api.patch(`/admins/${a.id}`, { role: a.role === 'admin' ? 'viewer' : 'admin' }), t('admins.updated'))} disabled={busy}>{a.role === 'admin' ? t('admins.viewer') : t('admins.admin')}</button>
                 <button class="btn sm" onclick={() => run(() => api.patch(`/admins/${a.id}`, { status: a.status === 'active' ? 'disabled' : 'active' }), t('admins.updated'))} disabled={busy}>{a.status === 'active' ? t('admins.disable') : t('admins.enable')}</button>

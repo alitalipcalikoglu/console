@@ -37,7 +37,7 @@
   <form class="card login" onsubmit={session.totpPending ? submitTotp : submit}>
     <div class="row" style="margin-bottom:18px"><img src="/icons/icon.svg" alt="" width="36" height="36" style="border-radius:10px" /><div><h1 style="font-size:1.2rem">{session.totpPending ? t('login.totpTitle') : t('login.title')}</h1><p class="small muted">{session.totpPending ? t('login.totpSubtitle') : t('login.subtitle')}</p></div></div>
     {#if session.totpPending}
-      <div class="field"><label for="code">{t('login.code')}</label><input id="code" class="input mono" style="letter-spacing:.3em;font-size:1.3rem;text-align:center" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" bind:value={code} required /></div>
+      <div class="field"><label for="code">{t('login.code')}</label><input id="code" class="input mono" style="letter-spacing:.3em;font-size:1.3rem;text-align:center" inputmode="numeric" pattern={'[0-9]{6}'} maxlength="6" autocomplete="one-time-code" bind:value={code} required /></div>
     {:else}
       <div class="field"><label for="email">{t('common.email')}</label><input id="email" class="input" type="email" autocomplete="username" bind:value={email} required /></div>
       <div class="field"><label for="password">{t('common.password')}</label><input id="password" class="input" type="password" autocomplete="current-password" bind:value={password} required /></div>
