@@ -14,6 +14,7 @@ import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
 import { NotifyClient } from '../services/notify-client.js';
 import { ShortlinkClient } from '../services/shortlink-client.js';
+import { WebhookOutClient } from '../services/webhook-out-client.js';
 import { SessionAuth } from './session-auth.js';
 
 /** @typedef {import('../config.js').Config} Config */
@@ -88,6 +89,22 @@ class Schemas {
   };
   static schedulerCreate = Schemas.body(['name', 'schedule', 'target'], { name: { type: 'string', pattern: '^[a-z0-9]+([.\\-_][a-z0-9]+)*$', maxLength: 80 }, ...Schemas.schedulerFields });
   static schedulerPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: Schemas.schedulerFields };
+  static webhookQuery = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      q: { type: 'string', maxLength: 120 }, status: { type: 'string', enum: ['active', 'paused', 'disabled', 'pending', 'running', 'retrying', 'succeeded', 'failed', 'cancelled'] },
+      event: { type: 'string', maxLength: 120 }, type: { type: 'string', maxLength: 120 }, subscription: { type: 'string', pattern: '^sub_[0-9a-f]{16}$' },
+      limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' }, cursor: { type: 'string', maxLength: 80 }, before: { type: 'string', pattern: '^[1-9][0-9]{0,15}$' },
+    },
+  };
+  static webhookFields = {
+    name: { type: 'string', pattern: '^[a-z0-9]+([.\\-_][a-z0-9]+)*$', maxLength: 80 }, url: { type: 'string', minLength: 8, maxLength: 2048 },
+    events: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'string', minLength: 1, maxLength: 120 } }, description: { type: 'string', maxLength: 500 },
+    headers: { type: 'object', maxProperties: 10, additionalProperties: { type: 'string', maxLength: 1024 }, propertyNames: { maxLength: 64 } }, enabled: { type: 'boolean' },
+  };
+  static webhookCreate = Schemas.body(['name', 'url', 'events'], Schemas.webhookFields);
+  static webhookPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: Schemas.webhookFields };
+  static webhookReplay = Schemas.body(['from'], { from: { type: 'string', minLength: 20, maxLength: 40 }, to: { type: 'string', minLength: 20, maxLength: 40 } });
   static flagsQuery = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -681,6 +698,72 @@ export class ConsoleApi {
       record(request, 'scheduler.run.cancel', pid(request), { service: sid(request) });
       return out;
     });
+
+    // ---------------------------------------------------------------- webhook-out
+    const WQ = Schemas.webhookQuery;
+    const wh = (/** @type {FastifyRequest} */ r) => this.clients.get(sid(r), WebhookOutClient);
+    api.get('/services/:sid/webhook-out/stats', { schema: { params: P } }, async (request) => { s.requireSession(request); return wh(request).stats(); });
+    api.get('/services/:sid/webhook-out/event-types', { schema: { params: P } }, async (request) => { s.requireSession(request); return wh(request).eventTypes(); });
+    api.get('/services/:sid/webhook-out/subscriptions', { schema: { params: P, querystring: WQ } }, async (request) => { s.requireSession(request); return wh(request).listSubscriptions(query(request)); });
+    api.post('/services/:sid/webhook-out/subscriptions', { schema: { params: P, body: Schemas.webhookCreate } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const body = /** @type {any} */ (request.body);
+      const out = await wh(request).createSubscription(body);
+      record(request, 'webhook.subscription.create', body.name, { service: sid(request), url: body.url, events: body.events });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/webhook-out/subscriptions/:id', { schema: { params: PI } }, async (request) => {
+      s.requireSession(request);
+      const c = wh(request);
+      const [sub, deliveries] = await Promise.all([c.getSubscription(pid(request)), c.deliveries({ subscription: pid(request), limit: 20 })]);
+      return { .../** @type {any} */ (sub), deliveries: /** @type {any} */ (deliveries).items, deliveriesNextBefore: /** @type {any} */ (deliveries).nextBefore };
+    });
+    api.patch('/services/:sid/webhook-out/subscriptions/:id', { schema: { params: PI, body: Schemas.webhookPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await wh(request).patchSubscription(pid(request), /** @type {any} */ (request.body));
+      record(request, 'webhook.subscription.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/webhook-out/subscriptions/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await wh(request).deleteSubscription(pid(request));
+      record(request, 'webhook.subscription.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.post('/services/:sid/webhook-out/subscriptions/:id/rotate', { schema: { params: PI } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await wh(request).rotate(pid(request));
+      record(request, 'webhook.subscription.rotate', pid(request), { service: sid(request) });
+      return out;
+    });
+    api.post('/services/:sid/webhook-out/subscriptions/:id/test', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const out = await wh(request).test(pid(request));
+      record(request, 'webhook.subscription.test', pid(request), { service: sid(request), delivery: /** @type {any} */ (out)?.delivery?.id ?? null });
+      return reply.code(202).send(out);
+    });
+    api.post('/services/:sid/webhook-out/subscriptions/:id/replay', { schema: { params: PI, body: Schemas.webhookReplay } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const out = await wh(request).replay(pid(request), /** @type {any} */ (request.body));
+      record(request, 'webhook.subscription.replay', pid(request), { service: sid(request), ...(/** @type {object} */ (request.body)), queued: /** @type {any} */ (out)?.queued ?? null });
+      return reply.code(202).send(out);
+    });
+    api.get('/services/:sid/webhook-out/deliveries', { schema: { params: P, querystring: WQ } }, async (request) => { s.requireSession(request); const q = query(request); return wh(request).deliveries({ status: q.status, subscription: q.subscription, event: q.event, limit: num(q.limit), before: q.before }); });
+    api.get('/services/:sid/webhook-out/deliveries/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return wh(request).getDelivery(pid(request)); });
+    api.post('/services/:sid/webhook-out/deliveries/:id/redeliver', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const out = await wh(request).redeliver(pid(request));
+      record(request, 'webhook.delivery.redeliver', pid(request), { service: sid(request), delivery: /** @type {any} */ (out)?.delivery?.id ?? null });
+      return reply.code(202).send(out);
+    });
+    api.post('/services/:sid/webhook-out/deliveries/:id/cancel', { schema: { params: PI } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await wh(request).cancelDelivery(pid(request));
+      record(request, 'webhook.delivery.cancel', pid(request), { service: sid(request) });
+      return out;
+    });
+    api.get('/services/:sid/webhook-out/events', { schema: { params: P, querystring: WQ } }, async (request) => { s.requireSession(request); const q = query(request); return wh(request).events({ type: q.type, limit: num(q.limit), before: q.before }); });
+    api.get('/services/:sid/webhook-out/events/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return wh(request).getEvent(pid(request)); });
 
     return api;
   }

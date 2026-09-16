@@ -2,13 +2,13 @@ import { untrack } from 'svelte';
 import { api } from './api.js';
 
 /** @typedef {{ enabled: boolean, intervalSec: number }} Polling */
-/** @typedef {{ id: string, type: 'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink'|'flags'|'scheduler', label: string, url: string, publicUrl: string|null, hasMetrics: boolean, polling: Polling }} ServiceInfo */
+/** @typedef {{ id: string, type: 'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink'|'flags'|'scheduler'|'webhook-out', label: string, url: string, publicUrl: string|null, hasMetrics: boolean, polling: Polling }} ServiceInfo */
 /** @typedef {ServiceInfo & { health: boolean, ready: boolean, readyDetail: unknown, latencyMs: number, summary: any }} ServiceOverview */
 
 /** Configured services and their latest health, shared by the navigation and the overview page. */
 export class Services {
   /** Navigation icon per service type. @type {Record<ServiceInfo['type'], string>} */
-  static ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link', flags: 'flag', scheduler: 'clock' };
+  static ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route', audit: 'history', shortlink: 'link', flags: 'flag', scheduler: 'clock', 'webhook-out': 'webhook' };
 
   constructor() {
     /** @type {ServiceInfo[]} */

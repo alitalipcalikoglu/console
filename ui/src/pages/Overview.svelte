@@ -41,6 +41,7 @@
       case 'shortlink': return [[t('sl.activeLinks'), fmt.int(m.activeLinks)], [t('sl.clicks'), fmt.int(m.clicks)], [t('sl.clicksLastHour'), fmt.int(m.clicksLastHour)], [t('sl.inactiveLinks'), fmt.int(m.inactiveLinks)]];
       case 'flags': return [[t('fl.flags'), fmt.int(m.activeFlags)], ...Object.entries(m.enabledByEnv ?? {}).map(([env, n]) => [`${env} ${t('fl.enabledShort')}`, fmt.int(/** @type {number} */ (n))]), [t('fl.archived'), fmt.int(m.archivedFlags)]];
       case 'scheduler': return [[t('sc.enabledJobs'), fmt.int(m.enabledJobs)], [t('sc.nextDue'), m.nextDueSec == null || m.nextDueSec < 0 ? '–' : fmt.duration(m.nextDueSec)], [t('sc.status.succeeded'), fmt.int(m.runsByStatus?.succeeded ?? 0)], [t('sc.status.failed'), fmt.int(m.runsByStatus?.failed ?? 0)]];
+      case 'webhook-out': return [[t('wh.activeSubs'), fmt.int(m.activeSubscriptions)], [t('wh.status.disabled'), fmt.int(m.disabledSubscriptions)], [t('wh.backlog'), fmt.int(m.backlog)], [t('wh.dstatus.failed'), fmt.int(m.deliveriesByStatus?.failed ?? 0)]];
       default: return [];
     }
   }

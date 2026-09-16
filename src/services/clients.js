@@ -6,6 +6,7 @@ import { MediaClient } from './media-client.js';
 import { NotifyClient } from './notify-client.js';
 import { SchedulerClient } from './scheduler-client.js';
 import { ShortlinkClient } from './shortlink-client.js';
+import { WebhookOutClient } from './webhook-out-client.js';
 import { ServiceClient, ServiceError } from './client.js';
 
 /** @typedef {import('./registry.js').ServiceRegistry} ServiceRegistry */
@@ -38,6 +39,7 @@ export class ServiceClients {
       case 'shortlink': return new ShortlinkClient(def, o);
       case 'flags': return new FlagsClient(def, o);
       case 'scheduler': return new SchedulerClient(def, o);
+      case 'webhook-out': return new WebhookOutClient(def, o);
       default: throw new Error(`unknown service type ${def.type}`);
     }
   }

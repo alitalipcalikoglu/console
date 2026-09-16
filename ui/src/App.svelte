@@ -25,6 +25,10 @@
   import Jobs from './pages/scheduler/Jobs.svelte';
   import JobDetail from './pages/scheduler/JobDetail.svelte';
   import RunDetail from './pages/scheduler/RunDetail.svelte';
+  import Subscriptions from './pages/webhook/Subscriptions.svelte';
+  import SubscriptionDetail from './pages/webhook/SubscriptionDetail.svelte';
+  import DeliveryDetail from './pages/webhook/DeliveryDetail.svelte';
+  import WebhookEventDetail from './pages/webhook/EventDetail.svelte';
   import Audit from './pages/Audit.svelte';
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
@@ -77,6 +81,10 @@
       {:else if match.pattern === '/scheduler/:sid'}<Jobs sid={match.params.sid} />
       {:else if match.pattern === '/scheduler/:sid/jobs/:id'}<JobDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/scheduler/:sid/runs/:id'}<RunDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/webhook-out/:sid'}<Subscriptions sid={match.params.sid} />
+      {:else if match.pattern === '/webhook-out/:sid/subscriptions/:id'}<SubscriptionDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/webhook-out/:sid/deliveries/:id'}<DeliveryDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/webhook-out/:sid/events/:id'}<WebhookEventDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
       {:else if match.pattern === '/account'}<Account />
