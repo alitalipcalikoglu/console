@@ -142,8 +142,9 @@ export class ConsoleApi {
    */
   async #registerStatic(app) {
     const root = resolve(process.cwd(), this.config.publicDir);
+    // wildcard serving: files added by a later `npm run build` are picked up without a restart.
     await app.register(fastifyStatic, {
-      root, wildcard: false, index: false,
+      root, wildcard: true, index: 'index.html',
       cacheControl: false,
       setHeaders(reply, path) {
         // Hashed assets are immutable; everything else must revalidate so deploys show up.
@@ -151,16 +152,16 @@ export class ConsoleApi {
         if (path.endsWith('sw.js')) reply.header('service-worker-allowed', '/');
       },
     });
-    /** @type {import('fastify').RouteHandlerMethod} */
-    const spa = async (request, reply) => {
+    // Anything the static plugin cannot find: API paths and file-like paths are JSON 404s,
+    // every other GET is a client-side route and receives index.html.
+    app.setNotFoundHandler((request, reply) => {
       const path = request.url.split('?')[0];
+      if (request.method !== 'GET' && request.method !== 'HEAD') return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'route not found' } });
       if (path.startsWith('/api/')) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'route not found' } });
       if (/\.[a-z0-9]{2,8}$/i.test(path)) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'file not found' } });
       reply.header('cache-control', 'no-cache');
       return reply.sendFile('index.html');
-    };
-    app.get('/', { logLevel: 'warn' }, spa);
-    app.get('/*', { logLevel: 'warn' }, spa);
+    });
   }
 
   /** @param {FastifyInstance} api */

@@ -40,6 +40,7 @@ export class I18n {
   constructor() {
     /** @type {'tr'|'en'} */
     this.lang = $state(I18n.#initial());
+    document.documentElement.lang = this.lang;
   }
 
   static #initial() {
