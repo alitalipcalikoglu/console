@@ -47,7 +47,7 @@
   <div class="two">
     <div class="stack">
       <div class="card"><div class="card-body">
-        <div class="row" style="margin-bottom:12px"><div class="avatar">{session.admin?.email.slice(0, 1).toUpperCase()}</div><div><div style="font-weight:650">{session.admin?.name}</div><div class="small muted mono">{session.admin?.email}</div></div><span class="grow"></span><span class="badge {session.isAdmin ? 'info' : ''}">{t(`admins.${session.admin?.role}`)}</span></div>
+        <div class="row" style="margin-bottom:12px"><div class="avatar">{session.admin?.email.slice(0, 1).toUpperCase()}</div><div class="grow" style="min-width:0"><div style="font-weight:650">{session.admin?.name}</div><div class="small muted mono truncate">{session.admin?.email}</div></div><span class="badge {session.isAdmin ? 'info' : ''}">{t(`admins.${session.admin?.role}`)}</span></div>
         <div class="row wrap" style="gap:16px">
           <div class="field"><span class="small" style="font-weight:550;color:var(--text-2)">{t('account.theme')}</span><div class="seg">{#each MODES as m (m)}<button aria-pressed={theme.mode === m} onclick={() => theme.set(m)}>{t(`account.theme${m[0].toUpperCase()}${m.slice(1)}`)}</button>{/each}</div></div>
           <div class="field"><span class="small" style="font-weight:550;color:var(--text-2)">{t('account.language')}</span><div class="seg"><button aria-pressed={i18n.lang === 'tr'} onclick={() => i18n.set('tr')}>Türkçe</button><button aria-pressed={i18n.lang === 'en'} onclick={() => i18n.set('en')}>English</button></div></div>
@@ -97,8 +97,9 @@
 </Dialog>
 
 <style>
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .two > * { min-width: 0; }
+  @media (max-width: 900px) { .two { grid-template-columns: minmax(0, 1fr); } }
   .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
   .qr { width: 200px; background: #fff; padding: 8px; border-radius: 8px; }
   .qr :global(svg) { display: block; width: 100%; height: auto; }

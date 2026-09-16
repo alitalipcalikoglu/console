@@ -31,12 +31,11 @@
     if (!signedIn && router.path !== '/login') router.go('/login', { replace: true });
     if (signedIn && router.path === '/login') router.go('/', { replace: true });
   });
-  // Load the service list and health once signed in; refresh health every minute.
+  // Load the service list once signed in. No background polling: each service is probed only
+  // when its card or page is opened, or when the admin presses its own refresh button.
   $effect(() => {
     if (!signedIn) { services.reset(); return; }
-    services.load().then(() => services.refreshOverview()).catch((e) => toasts.error(e));
-    const id = setInterval(() => services.refreshOverview().catch(() => {}), 60_000);
-    return () => clearInterval(id);
+    services.load().catch((e) => toasts.error(e));
   });
   $effect(() => {
     if (pwa.updateReady) toasts.info(t('common.updateAvailable'), { sticky: true, action: { label: t('common.reload'), run: () => pwa.applyUpdate() } });

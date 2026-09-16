@@ -14,7 +14,7 @@
   let { sid } = $props();
   const fmt = $derived(new Fmt(i18n.lang));
   const res = new Resource(() => api.get(`/services/${sid}/status`));
-  $effect(() => { res.load(); const id = setInterval(() => res.load(), 30_000); return () => clearInterval(id); });
+  $effect(() => { res.load(); });
   const d = $derived(/** @type {any} */ (res.data));
   const m = $derived(d?.summary && !d.summary.error ? d.summary : null);
   const routes = $derived(Object.entries(/** @type {Record<string, any>} */ (m?.routes ?? {})).sort((a, b) => total(b[1]) - total(a[1])));

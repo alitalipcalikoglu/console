@@ -6,6 +6,7 @@
   import { services } from '../services.svelte.js';
   import { theme } from '../theme.svelte.js';
   import { pwa } from '../pwa.svelte.js';
+  import { page } from '../page.svelte.js';
   import { t } from '../i18n.svelte.js';
   /** @type {{ children: import('svelte').Snippet }} */
   let { children } = $props();
@@ -36,12 +37,18 @@
 
   <div class="main">
     <header class="header">
-      <a href="/" class="row" style="font-weight:700;color:inherit"><img src="/icons/icon.svg" alt="" width="24" height="24" style="border-radius:6px" /> <span class="hide-desktop">{t('app.name')}</span></a>
-      <div class="grow"></div>
+      {#if page.back}<a href={page.back} class="btn ghost icon sm" aria-label={t('common.back')} title={t('common.back')}><Icon name="back" /></a>
+      {:else}<a href="/" class="hide-desktop row" aria-label={t('app.name')}><img src="/icons/icon.svg" alt="" width="24" height="24" style="border-radius:6px" /></a>{/if}
+      <div class="grow" style="min-width:0">
+        <h1 class="page-title truncate">{page.title}</h1>
+        {#if page.desc}<p class="page-desc truncate">{page.desc}</p>{/if}
+      </div>
       {#if !pwa.online}<span class="badge warn"><Icon name="wifiOff" size={12} /> {t('common.offline')}</span>{/if}
-      {#if session.admin?.role === 'viewer'}<span class="badge plain" title={t('common.viewerNote')}>{t('admins.viewer')}</span>{/if}
-      <button class="btn ghost icon" onclick={() => theme.toggle()} aria-label={t('account.theme')} title={t('account.theme')}><Icon name={theme.mode === 'dark' ? 'sun' : 'moon'} /></button>
-      <button class="btn ghost icon" onclick={() => session.logout().then(() => router.go('/login'))} aria-label={t('account.logout')} title={t('account.logout')}><Icon name="logout" /></button>
+      {#if session.admin?.role === 'viewer'}<span class="badge plain hide-mobile" title={t('common.viewerNote')}>{t('admins.viewer')}</span>{/if}
+      {#if page.actions}<div class="page-actions">{@render page.actions()}</div>{/if}
+      <span class="divider hide-mobile"></span>
+      <button class="btn ghost icon hide-mobile" onclick={() => theme.toggle()} aria-label={t('account.theme')} title={t('account.theme')}><Icon name={theme.mode === 'dark' ? 'sun' : 'moon'} /></button>
+      <button class="btn ghost icon hide-mobile" onclick={() => session.logout().then(() => router.go('/login'))} aria-label={t('account.logout')} title={t('account.logout')}><Icon name="logout" /></button>
     </header>
     <main class="content">{@render children()}</main>
   </div>
@@ -54,5 +61,11 @@
 </div>
 
 <style>
+  .page-title { font-size: 1.05rem; font-weight: 650; line-height: 1.25; }
+  .page-desc { font-size: .78rem; color: var(--text-2); line-height: 1.2; }
+  .page-actions { display: flex; align-items: center; gap: 8px; flex: none; max-width: 70%; overflow-x: auto; scrollbar-width: none; }
+  .page-actions::-webkit-scrollbar { display: none; }
+  .divider { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
   @media (min-width: 901px) { .hide-desktop { display: none; } }
+  @media (max-width: 900px) { .hide-mobile { display: none; } .page-desc { display: none; } .page-actions { max-width: 60%; } }
 </style>

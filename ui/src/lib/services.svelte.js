@@ -10,8 +10,11 @@ export class Services {
     this.items = $state([]);
     /** @type {Record<string, ServiceOverview>} */
     this.overview = $state({});
+    /** @type {Record<string, number>} */
+    this.refreshedAt = $state({});
+    /** @type {Record<string, boolean>} */
+    this.refreshing = $state({});
     this.loaded = $state(false);
-    this.overviewAt = $state(0);
   }
 
   async load() {
@@ -20,10 +23,26 @@ export class Services {
     this.loaded = true;
   }
 
-  async refreshOverview() {
-    const r = /** @type {{ items: ServiceOverview[] }} */ (await api.get('/services/overview'));
-    this.overview = Object.fromEntries(r.items.map((i) => [i.id, i]));
-    this.overviewAt = Date.now();
+  /**
+   * Refresh one service only: one probe pair plus one metrics call, nothing else.
+   * @param {string} id
+   */
+  async refreshOne(id) {
+    const def = this.get(id);
+    if (!def) return;
+    this.refreshing = { ...this.refreshing, [id]: true };
+    try {
+      const r = /** @type {Omit<ServiceOverview, keyof ServiceInfo>} */ (await api.get(`/services/${id}/status`));
+      this.overview = { ...this.overview, [id]: { ...def, ...r } };
+      this.refreshedAt = { ...this.refreshedAt, [id]: Date.now() };
+    } finally {
+      this.refreshing = { ...this.refreshing, [id]: false };
+    }
+  }
+
+  /** Services never probed in this session (first paint of the overview). */
+  async refreshMissing() {
+    await Promise.all(this.items.filter((s) => !this.overview[s.id]).map((s) => this.refreshOne(s.id).catch(() => {})));
   }
 
   /** @param {string} id */
@@ -48,6 +67,8 @@ export class Services {
   reset() {
     this.items = [];
     this.overview = {};
+    this.refreshedAt = {};
+    this.refreshing = {};
     this.loaded = false;
   }
 }

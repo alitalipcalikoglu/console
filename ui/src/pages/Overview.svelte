@@ -7,10 +7,12 @@
   import { t, i18n } from '../lib/i18n.svelte.js';
   import { toasts } from '../lib/toast.svelte.js';
   const fmt = $derived(new Fmt(i18n.lang));
-  let busy = $state(false);
   /** @type {Record<string, string>} */
   const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route' };
-  async function refresh() { busy = true; try { await services.refreshOverview(); } catch (e) { toasts.error(e); } finally { busy = false; } }
+  // First visit probes only the services never seen in this session; afterwards each card refreshes on demand.
+  $effect(() => { if (services.loaded) services.refreshMissing(); });
+  /** @param {string} id */
+  async function refresh(id) { try { await services.refreshOne(id); } catch (e) { toasts.error(e); } }
   /** @param {any} o */
   function tone(o) { return !o ? '' : o.health && o.ready ? 'ok' : o.health ? 'warn' : 'danger'; }
   /** @param {any} o */
@@ -30,19 +32,16 @@
 </script>
 
 <Page title={t('overview.title')} desc={t('overview.desc')}>
-  {#snippet actions()}
-    {#if services.overviewAt}<span class="xs faint"><Time value={services.overviewAt} /></span>{/if}
-    <button class="btn" onclick={refresh} disabled={busy}><Icon name="refresh" size={16} /> {t('common.refresh')}</button>
-  {/snippet}
-  <div class="grid">
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))">
     {#each services.items as s (s.id)}
       {@const o = services.overview[s.id]}
-      <a href="/{s.type}/{s.id}" class="card service" style="color:inherit;text-decoration:none">
+      <div class="card service">
         <div class="card-body">
           <div class="row" style="margin-bottom:10px">
-            <span class="icon-wrap"><Icon name={ICONS[s.type]} size={20} /></span>
-            <div class="grow"><div style="font-weight:650">{s.label}</div><div class="xs faint">{s.type} · <span class="mono">{s.url.replace(/^https?:\/\//, '')}</span></div></div>
+            <a href="/{s.type}/{s.id}" class="icon-wrap" aria-label={t('overview.open')}><Icon name={ICONS[s.type]} size={20} /></a>
+            <div class="grow" style="min-width:90px"><a href="/{s.type}/{s.id}" style="font-weight:650;color:inherit">{s.label}</a><div class="xs faint truncate">{s.type} · <span class="mono">{s.url.replace(/^https?:\/\//, '')}</span></div></div>
             <span class="badge {tone(o)}">{label(o)}</span>
+            <button class="btn ghost icon sm" onclick={() => refresh(s.id)} disabled={services.refreshing[s.id]} aria-label="{t('common.refresh')} {s.label}" title={t('common.refresh')}><Icon name="refresh" size={14} /></button>
           </div>
           {#if o?.summary?.error}
             <p class="small warn-text">{t('overview.noMetrics')}: {o.summary.error}</p>
@@ -53,14 +52,14 @@
           {:else}
             <div class="skeleton" style="height:48px"></div>
           {/if}
-          {#if o}<div class="xs faint" style="margin-top:10px">{t('overview.latency')} {fmt.ms(o.latencyMs)}{#if o.summary?.uptimeSec != null} · {t('overview.uptime')} {fmt.duration(o.summary.uptimeSec)}{/if}</div>{/if}
+          {#if o}<div class="xs faint row" style="margin-top:10px"><span class="grow">{t('overview.latency')} {fmt.ms(o.latencyMs)}{#if o.summary?.uptimeSec != null} · {t('overview.uptime')} {fmt.duration(o.summary.uptimeSec)}{/if}</span>{#if services.refreshedAt[s.id]}<Time value={services.refreshedAt[s.id]} />{/if}</div>{/if}
         </div>
-      </a>
+      </div>
     {/each}
   </div>
 </Page>
 
 <style>
-  .service:hover { border-color: var(--border-strong); }
-  .icon-wrap { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+  .icon-wrap { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); flex: none; }
+  .service a:hover { text-decoration: none; }
 </style>

@@ -88,5 +88,6 @@
 
 <style>
   .detail { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-  @media (max-width: 900px) { .detail { grid-template-columns: 1fr; } }
+  .detail > * { min-width: 0; }
+  @media (max-width: 900px) { .detail { grid-template-columns: minmax(0, 1fr); } }
 </style>

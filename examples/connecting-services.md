@@ -42,5 +42,5 @@ The overview card turns red ("Unreachable"), its navigation dot turns red, and i
 | Call | Purpose |
 |---|---|
 | `GET /api/services` | configured services (no secrets) |
-| `GET /api/services/overview` | health, readiness, latency and parsed metrics for all |
+| `GET /api/services/overview` | health, readiness, latency and parsed metrics for all (used by scripts; the UI probes one service at a time) |
 | `GET /api/services/:id/status` | the same for one |

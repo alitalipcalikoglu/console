@@ -7,6 +7,7 @@
   import Time from '../lib/components/Time.svelte';
   import Dialog from '../lib/components/Dialog.svelte';
   import Confirm from '../lib/components/Confirm.svelte';
+  import RowMenu from '../lib/components/RowMenu.svelte';
   import { api } from '../lib/api.js';
   import { Resource } from '../lib/resource.svelte.js';
   import { session } from '../lib/session.svelte.js';
@@ -41,15 +42,17 @@
             <td><StatusBadge status={a.lockedUntil ? 'locked' : a.status} label={a.lockedUntil ? t('auth.locked') : a.status} /></td>
             <td>{#if a.totpEnabled}<span class="badge ok">{t('account.totpOn')}</span>{:else}<span class="badge">{t('account.totpOff')}</span>{/if}</td>
             <td><Time value={a.lastLoginAt} /></td>
-            <td><div class="row wrap" style="justify-content:flex-end;min-width:280px">
+            <td style="text-align:right">
               {#if !me}
-                <button class="btn sm" onclick={() => run(() => api.patch(`/admins/${a.id}`, { role: a.role === 'admin' ? 'viewer' : 'admin' }), t('admins.updated'))} disabled={busy}>{a.role === 'admin' ? t('admins.viewer') : t('admins.admin')}</button>
-                <button class="btn sm" onclick={() => run(() => api.patch(`/admins/${a.id}`, { status: a.status === 'active' ? 'disabled' : 'active' }), t('admins.updated'))} disabled={busy}>{a.status === 'active' ? t('admins.disable') : t('admins.enable')}</button>
-                {#if a.lockedUntil}<button class="btn sm" onclick={() => run(() => api.post(`/admins/${a.id}/unlock`), t('admins.unlocked'))} disabled={busy}><Icon name="unlock" size={14} /> {t('admins.unlock')}</button>{/if}
-                <button class="btn sm" onclick={() => { target = a; fPassword = ''; dialog = 'password'; }} disabled={busy}><Icon name="key" size={14} /> {t('admins.resetPassword')}</button>
-                <button class="btn sm danger icon" onclick={() => { deleting = a; }} disabled={busy} aria-label={t('admins.delete')}><Icon name="trash" size={14} /></button>
+                <RowMenu label={t('common.actions')} items={[
+                  { label: a.role === 'admin' ? `${t('common.role')}: ${t('admins.viewer')}` : `${t('common.role')}: ${t('admins.admin')}`, icon: 'shield', run: () => run(() => api.patch(`/admins/${a.id}`, { role: a.role === 'admin' ? 'viewer' : 'admin' }), t('admins.updated')) },
+                  { label: a.status === 'active' ? t('admins.disable') : t('admins.enable'), icon: a.status === 'active' ? 'lock' : 'unlock', run: () => run(() => api.patch(`/admins/${a.id}`, { status: a.status === 'active' ? 'disabled' : 'active' }), t('admins.updated')) },
+                  ...(a.lockedUntil ? [{ label: t('admins.unlock'), icon: 'unlock', run: () => run(() => api.post(`/admins/${a.id}/unlock`), t('admins.unlocked')) }] : []),
+                  { label: t('admins.resetPassword'), icon: 'key', run: () => { target = a; fPassword = ''; dialog = 'password'; } },
+                  { label: t('admins.delete'), icon: 'trash', danger: true, run: () => { deleting = a; } },
+                ]} />
               {/if}
-            </div></td>
+            </td>
           </tr>
         {/each}</tbody>
       </table></div>

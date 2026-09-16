@@ -46,7 +46,7 @@ npm run typecheck
 
 | Area | See | Do (admin role) |
 |---|---|---|
-| Overview | health, readiness, latency and headline numbers of every service | refresh |
+| Overview | health, readiness, latency and headline numbers of every service | refresh one service at a time (no global refresh, no background polling) |
 | Notify | queue counters, messages by status, delivery errors, attempts | retry failed messages, send a test message from a template |
 | Auth | users, verification state, lockouts, sessions per device, audit trail | create user, disable/enable, delete, revoke one or all sessions, resend verification, send password reset |
 | Media | files as grid or list with previews, storage numbers | drag-and-drop upload (public/private), rename, switch visibility, soft delete and restore, generate signed links, create upload tickets |
