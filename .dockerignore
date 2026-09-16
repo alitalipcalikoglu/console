@@ -1,0 +1,9 @@
+node_modules
+data
+public
+test
+.env
+*.md
+LICENSE
+ecosystem.config.cjs
+services.json
