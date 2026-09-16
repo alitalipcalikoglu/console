@@ -36,3 +36,54 @@ export function testRegistry(urls) {
 export const silentLog = /** @type {any} */ (new Proxy({}, {
   get: (_t, prop) => (prop === 'child' ? () => silentLog : () => {}),
 }));
+
+/**
+ * Fully wired console on in-memory storage. Service URLs point at whatever the test provides.
+ * @param {{ urls?: Parameters<typeof servicesDoc>[0], env?: Record<string, string>, publicDir?: string }} [o]
+ */
+export async function testConsole({ urls, env = {}, publicDir } = {}) {
+  const { PasswordHasher } = await import('../src/crypto/password.js');
+  const { AdminService } = await import('../src/domain/admin-service.js');
+  const { ConsoleAuth } = await import('../src/domain/console-auth.js');
+  const { ConsoleApi } = await import('../src/http/console-api.js');
+  const { RateLimiter } = await import('../src/rate-limiter.js');
+  const { ServiceClients } = await import('../src/services/clients.js');
+  const { AdminStore } = await import('../src/store/admin-store.js');
+  const { AuditStore } = await import('../src/store/audit-store.js');
+  const { SessionStore } = await import('../src/store/session-store.js');
+  const config = testConfig({ ...(publicDir ? { PUBLIC_DIR: publicDir } : {}), ...env });
+  const db = testDb();
+  const admins = new AdminStore(db);
+  const sessions = new SessionStore(db);
+  const audit = new AuditStore(db);
+  const hasher = new PasswordHasher({ logN: 14 });
+  const clock = { now: Date.now() };
+  const auth = new ConsoleAuth({
+    admins, sessions, audit, hasher, log: silentLog,
+    options: { sessionTtlMs: config.sessionTtlMin * 60_000, sessionIdleMs: config.sessionIdleMin * 60_000, loginMaxFailures: config.loginMaxFailures, lockoutMs: config.loginLockoutMin * 60_000, totpIssuer: 'test console' },
+    now: () => clock.now,
+  });
+  const adminService = new AdminService({ admins, sessions, audit, hasher, now: () => clock.now });
+  const clients = new ServiceClients(testRegistry(urls), { timeoutMs: 3000 });
+  const api = new ConsoleApi({ config, auth, adminService, audit, clients, db, limiter: new RateLimiter(), logger: silentLog });
+  const app = await api.build();
+  api.registerUpload(app);
+  await app.ready();
+  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, clock };
+}
+
+export const ADMIN_PASSWORD = 'a very long console password';
+export const CSRF = { 'x-console-request': '1' };
+
+/**
+ * Create an admin and sign in; returns the cookie header to reuse.
+ * @param {Awaited<ReturnType<typeof testConsole>>} t
+ * @param {{ email?: string, role?: 'admin'|'viewer' }} [o]
+ */
+export async function signIn(t, { email = 'root@console.local', role = 'admin' } = {}) {
+  if (!t.admins.byEmail(email)) await t.adminService.create({ email, name: 'Root', password: ADMIN_PASSWORD, role }, null, { ip: null, userAgent: null });
+  const res = await t.app.inject({ method: 'POST', url: '/api/session/login', payload: { email, password: ADMIN_PASSWORD } });
+  if (res.statusCode !== 200) throw new Error(`login failed: ${res.body}`);
+  const cookie = String(res.headers['set-cookie']).split(';')[0];
+  return { cookie, body: res.json() };
+}
