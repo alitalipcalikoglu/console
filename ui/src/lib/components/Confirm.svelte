@@ -1,9 +1,13 @@
 <script>
-  /** Confirmation for consequential actions; destructive ones can demand a typed word. */
+  /**
+   * Confirmation for consequential actions. `danger` colours the action; `irreversible` (defaults
+   * to `danger`) adds the "cannot be undone" note, so a reversible but risky action (disable) can
+   * be red without claiming permanence. Deletes may demand a typed word.
+   */
   import Dialog from './Dialog.svelte';
   import { t } from '../i18n.svelte.js';
-  /** @type {{ open: boolean, title: string, message: string, confirmLabel?: string, danger?: boolean, typeWord?: string, busy?: boolean, onconfirm: () => void, oncancel: () => void }} */
-  let { open, title, message, confirmLabel, danger = false, typeWord, busy = false, onconfirm, oncancel } = $props();
+  /** @type {{ open: boolean, title: string, message: string, confirmLabel?: string, danger?: boolean, irreversible?: boolean, typeWord?: string, busy?: boolean, onconfirm: () => void, oncancel: () => void }} */
+  let { open, title, message, confirmLabel, danger = false, irreversible = danger, typeWord, busy = false, onconfirm, oncancel } = $props();
   let typed = $state('');
   $effect(() => { if (open) typed = ''; });
   const ready = $derived(!typeWord || typed.trim() === typeWord);
@@ -11,7 +15,7 @@
 
 <Dialog {open} {title} onclose={oncancel}>
   <p>{message}</p>
-  {#if danger}<p class="small danger-text" style="margin-top:8px">{t('confirm.irreversible')}</p>{/if}
+  {#if irreversible}<p class="small danger-text" style="margin-top:8px">{t('confirm.irreversible')}</p>{/if}
   {#if typeWord}
     <div class="field" style="margin-top:12px">
       <label for="confirm-word">{t('common.typeToConfirm', { word: typeWord })}</label>

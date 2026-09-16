@@ -23,11 +23,13 @@
   const u = $derived(d?.user);
   /** @type {null|'disable'|'delete'|'revokeAll'} */
   let confirm = $state(null);
+  /** Session id awaiting revoke confirmation. @type {string|null} */
+  let revoking = $state(null);
   let busy = $state(false);
   /** @param {() => Promise<unknown>} fn @param {string} ok */
   async function run(fn, ok, reload = true) {
     busy = true;
-    try { await fn(); toasts.ok(ok); if (reload) await res.load(); } catch (e) { toasts.error(e); } finally { busy = false; confirm = null; }
+    try { await fn(); toasts.ok(ok); if (reload) await res.load(); } catch (e) { toasts.error(e); } finally { busy = false; confirm = null; revoking = null; }
   }
   const base = $derived(`/services/${sid}/auth/users/${id}`);
 </script>
@@ -72,7 +74,7 @@
             <tbody>{#each d.sessions as s (s.id)}<tr>
               <td class="truncate small" style="max-width:320px" title={s.userAgent ?? ''}>{s.userAgent ?? '–'}</td><td class="mono small hide-m">{s.ip ?? '–'}</td>
               <td><Time value={s.lastUsedAt} /></td><td class="hide-m"><Time value={s.expiresAt} /></td>
-              <td>{#if session.isAdmin}<button class="btn sm" onclick={() => run(() => api.delete(`${base}/sessions/${s.id}`), t('auth.revoked'))} disabled={busy}>{t('auth.revoke')}</button>{/if}</td>
+              <td>{#if session.isAdmin}<button class="btn sm danger" onclick={() => { revoking = s.id; }} disabled={busy}>{t('auth.revoke')}</button>{/if}</td>
             </tr>{/each}</tbody></table></div>{/if}
       </Panel>
 
@@ -91,6 +93,7 @@
   {/if}
 </Page>
 
-<Confirm open={confirm === 'disable'} title={t('auth.disable')} message={t('auth.disableDesc')} danger confirmLabel={t('auth.disable')} {busy} onconfirm={() => run(() => api.patch(base, { status: 'disabled' }), t('auth.updated'))} oncancel={() => { confirm = null; }} />
+<Confirm open={revoking !== null} title={t('auth.revoke')} message={t('auth.revokeDesc')} danger confirmLabel={t('auth.revoke')} {busy} onconfirm={() => run(() => api.delete(`${base}/sessions/${revoking}`), t('auth.revoked'))} oncancel={() => { revoking = null; }} />
+<Confirm open={confirm === 'disable'} title={t('auth.disable')} message={t('auth.disableDesc')} danger irreversible={false} confirmLabel={t('auth.disable')} {busy} onconfirm={() => run(() => api.patch(base, { status: 'disabled' }), t('auth.updated'))} oncancel={() => { confirm = null; }} />
 <Confirm open={confirm === 'revokeAll'} title={t('auth.revokeAll')} message={t('auth.revokeAllDesc')} danger confirmLabel={t('auth.revokeAll')} {busy} onconfirm={() => run(async () => { const r = /** @type {any} */ (await api.delete(`${base}/sessions`)); toasts.info(t('auth.revokedAll', { n: r.revoked })); }, t('auth.updated'))} oncancel={() => { confirm = null; }} />
 <Confirm open={confirm === 'delete'} title={t('auth.deleteUser')} message={t('auth.deleteDesc')} danger typeWord={u?.email ?? ''} confirmLabel={t('common.delete')} {busy} onconfirm={() => run(async () => { await api.delete(base); router.go(`/auth/${sid}`); }, t('auth.userDeleted'), false)} oncancel={() => { confirm = null; }} />

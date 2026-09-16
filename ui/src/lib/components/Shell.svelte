@@ -1,6 +1,7 @@
 <script>
   /** Application frame: side navigation on desktop, bottom tabs on mobile, header with theme and account. */
   import Icon from './Icon.svelte';
+  import Confirm from './Confirm.svelte';
   import { router } from '../router.svelte.js';
   import { session } from '../session.svelte.js';
   import { Services, services } from '../services.svelte.js';
@@ -47,7 +48,7 @@
       {#if page.actions}<div class="page-actions many">{@render page.actions()}</div>{/if}
       <span class="divider hide-mobile"></span>
       <button class="btn ghost icon hide-mobile" onclick={() => theme.toggle()} aria-label={t('account.theme')} title={t('account.theme')}><Icon name={theme.mode === 'dark' ? 'sun' : 'moon'} /></button>
-      <button class="btn ghost icon hide-mobile" onclick={() => session.logout().then(() => router.go('/login'))} aria-label={t('account.logout')} title={t('account.logout')}><Icon name="logout" /></button>
+      <button class="btn ghost icon hide-mobile" onclick={() => session.requestLogout()} aria-label={t('account.logout')} title={t('account.logout')}><Icon name="logout" /></button>
     </header>
     <main class="content">{@render children()}</main>
   </div>
@@ -58,6 +59,9 @@
     {/each}
   </nav>
 </div>
+
+
+<Confirm open={session.logoutPending} title={t('account.logout')} message={t('account.logoutDesc')} confirmLabel={t('account.logout')} onconfirm={() => session.logout().then(() => router.go('/login'))} oncancel={() => { session.logoutPending = false; }} />
 
 <style>
   .page-title { font-size: 1.05rem; font-weight: 650; line-height: 1.25; }

@@ -1,6 +1,7 @@
 <script>
   import Page from '../lib/components/Page.svelte';
   import Panel from '../lib/components/Panel.svelte';
+  import Confirm from '../lib/components/Confirm.svelte';
   import StatusBadge from '../lib/components/StatusBadge.svelte';
   import Icon from '../lib/components/Icon.svelte';
   import Time from '../lib/components/Time.svelte';
@@ -39,13 +40,14 @@
     busy = true;
     try { await api.post('/me/totp/disable', { password: dPassword, code: dCode.trim() }); toasts.ok(t('account.totpDisabled')); disableOpen = false; dPassword = dCode = ''; await session.refresh(); } catch (err) { toasts.error(err); } finally { busy = false; }
   }
-  async function logoutOthers() { busy = true; try { const r = /** @type {{ revoked: number }} */ (await api.post('/me/sessions/logout-others')); toasts.ok(t('account.loggedOutOthers', { n: r.revoked })); sessions.load(); } catch (err) { toasts.error(err); } finally { busy = false; } }
+  let othersOpen = $state(false);
+  async function logoutOthers() { busy = true; try { const r = /** @type {{ revoked: number }} */ (await api.post('/me/sessions/logout-others')); toasts.ok(t('account.loggedOutOthers', { n: r.revoked })); sessions.load(); } catch (err) { toasts.error(err); } finally { busy = false; othersOpen = false; } }
   const items = $derived(/** @type {any} */ (sessions.data)?.items ?? []);
   const MODES = /** @type {const} */ (['system', 'light', 'dark']);
 </script>
 
 <Page title={t('account.title')} desc={t('account.desc')}>
-  {#snippet actions()}<button class="btn" onclick={() => session.logout().then(() => router.go('/login'))}><Icon name="logout" size={16} /> {t('account.logout')}</button>{/snippet}
+  {#snippet actions()}<button class="btn" onclick={() => session.requestLogout()}><Icon name="logout" size={16} /> {t('account.logout')}</button>{/snippet}
   <div class="two">
     <div class="stack">
       <div class="card"><div class="card-body">
@@ -83,7 +85,7 @@
       </Panel>
 
       <Panel title={t('account.sessions')} flush>
-        {#snippet aside()}{#if items.length > 1}<button class="btn sm" onclick={logoutOthers} disabled={busy}>{t('account.logoutOthers')}</button>{/if}{/snippet}
+        {#snippet aside()}{#if items.length > 1}<button class="btn sm danger" onclick={() => { othersOpen = true; }} disabled={busy}>{t('account.logoutOthers')}</button>{/if}{/snippet}
         <div class="table-wrap"><table class="table">
         <thead><tr><th>{t('auth.device')}</th><th>{t('common.ip')}</th><th>{t('auth.lastSeen')}</th></tr></thead>
         <tbody>{#each items as s (s.id)}<tr><td class="small truncate" style="max-width:260px">{s.userAgent ?? '–'}{#if s.current} <span class="badge ok plain">{t('account.thisDevice')}</span>{/if}</td><td class="mono small">{s.ip ?? '–'}</td><td><Time value={s.lastSeenAt} /></td></tr>{/each}</tbody>
@@ -93,6 +95,7 @@
   </div>
 </Page>
 
+<Confirm open={othersOpen} title={t('account.logoutOthers')} message={t('account.logoutOthersDesc')} danger confirmLabel={t('account.logoutOthers')} {busy} onconfirm={logoutOthers} oncancel={() => { othersOpen = false; }} />
 <Dialog open={disableOpen} title={t('account.disableTotp')} onclose={() => { disableOpen = false; }}>
   <p class="small muted" style="margin-bottom:12px">{t('account.disableTotpDesc')}</p>
   <div class="stack">

@@ -10,6 +10,8 @@ export class Session {
     this.admin = $state(null);
     this.totpPending = $state(false);
     this.loaded = $state(false);
+    /** True while the sign-out confirmation is open; the Shell renders it. */
+    this.logoutPending = $state(false);
     api.onUnauthenticated = (code) => {
       if (code === 'TOTP_REQUIRED') { this.totpPending = true; this.admin = null; } else { this.admin = null; }
     };
@@ -44,8 +46,11 @@ export class Session {
     this.totpPending = false;
   }
 
+  /** Ask before signing out; every sign-out button calls this, never `logout()` directly. */
+  requestLogout() { this.logoutPending = true; }
+
   async logout() {
-    try { await api.post('/session/logout'); } finally { this.admin = null; this.totpPending = false; }
+    try { await api.post('/session/logout'); } finally { this.admin = null; this.totpPending = false; this.logoutPending = false; }
   }
 
   /** Refresh the profile after account changes. */
