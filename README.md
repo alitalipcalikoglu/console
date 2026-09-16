@@ -76,7 +76,8 @@ Every operation goes through the console's own typed API (`/api/services/:id/…
 - TOTP (RFC 6238, Google Authenticator compatible) with replay protection; disabling needs password and a valid code. Recommended for every admin: the console holds every service key.
 - CSRF: every mutating request must carry `X-Console-Request: 1`, which cross-site pages cannot add; cookies are `SameSite=Strict` as well.
 - Service keys never reach the browser. Media previews and downloads are streamed through the console.
-- Security headers on every response (`X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: same-origin`, HSTS with TLS); API responses are `no-store`.
+- Strict Content-Security-Policy on every page (`script-src 'self'` plus the hash of the theme pre-paint script, no remote sources, `frame-ancestors 'none'`). Security headers on every response (`X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: same-origin`, HSTS with TLS); API responses are `no-store`.
+- The file-bytes proxy renders only raster image types inline; anything else (SVG, PDF, HTML) is delivered as `application/octet-stream` attachment inside a sandboxed CSP, so a hostile upload cannot run on the console's origin.
 - The first administrator is created from the server's command line; there is no sign-up page.
 - Container runs as the unprivileged `node` user.
 

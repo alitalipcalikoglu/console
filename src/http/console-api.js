@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
@@ -50,8 +50,25 @@ class Schemas {
  * each service (never a generic proxy), and the static Svelte app with SPA fallback.
  */
 export class ConsoleApi {
-  /** Svelte needs inline style attributes; scripts and connections stay same-origin. */
-  static APP_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+  /**
+   * Svelte needs inline style attributes; scripts stay same-origin plus the hashes of the inline
+   * scripts found in the built index.html (theme pre-paint).
+   * @param {string[]} scriptHashes
+   */
+  static appCsp(scriptHashes) {
+    const scripts = ["'self'", ...scriptHashes.map((h) => `'sha256-${h}'`)].join(' ');
+    return `default-src 'self'; script-src ${scripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
+  }
+
+  /**
+   * sha256 (base64) of every inline, non-module <script> body in index.html.
+   * @param {string} indexPath
+   */
+  static inlineScriptHashes(indexPath) {
+    if (!existsSync(indexPath)) return [];
+    const html = readFileSync(indexPath, 'utf8');
+    return [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => createHash('sha256').update(m[1]).digest('base64'));
+  }
   /** Content types the browser may render inline from the file proxy; everything else downloads as an opaque blob. */
   static INLINE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
@@ -76,6 +93,7 @@ export class ConsoleApi {
     this.limiter = limiter;
     this.logger = logger;
     this.session = new SessionAuth(auth, { secure: config.cookieSecure, ttlMs: config.sessionTtlMin * 60_000 });
+    this.csp = ConsoleApi.appCsp(ConsoleApi.inlineScriptHashes(resolve(process.cwd(), config.publicDir, 'index.html')));
   }
 
   /** @returns {Promise<FastifyInstance>} */
@@ -100,7 +118,7 @@ export class ConsoleApi {
       reply.header('referrer-policy', 'same-origin');
       reply.header('x-frame-options', 'DENY');
       // Strict CSP for the app; file-byte responses set their own sandboxed policy.
-      if (!reply.hasHeader('content-security-policy')) reply.header('content-security-policy', ConsoleApi.APP_CSP);
+      if (!reply.hasHeader('content-security-policy')) reply.header('content-security-policy', this.csp);
       if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
       if (config.tls) reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
     });

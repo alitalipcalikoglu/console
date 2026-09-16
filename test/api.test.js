@@ -46,7 +46,7 @@ const fake = createServer((req, res) => {
 });
 const pub = mkdtempSync(join(tmpdir(), 'console-public-'));
 mkdirSync(join(pub, 'assets'));
-writeFileSync(join(pub, 'index.html'), '<!doctype html><title>console</title>');
+writeFileSync(join(pub, 'index.html'), '<!doctype html><title>console</title><script>try{document.documentElement.dataset.theme="dark"}catch{}</script><script type="module" src="/assets/app-abc123def.js"></script>');
 writeFileSync(join(pub, 'assets', 'app-abc123def.js'), 'console.log(1)');
 writeFileSync(join(pub, 'sw.js'), '// sw');
 
@@ -180,7 +180,7 @@ test('media: list, thumbnail proxy, streaming upload, delete, ticket', async () 
   assert.equal(svg.headers['content-type'], 'application/octet-stream', 'non-raster types are neutralised');
   assert.match(String(svg.headers['content-disposition']), /^attachment/);
   const page = await t.app.inject('/');
-  assert.match(String(page.headers['content-security-policy']), /script-src 'self'/);
+  assert.match(String(page.headers['content-security-policy']), /script-src 'self' 'sha256-[A-Za-z0-9+/=]{44}'; style-src/, 'inline theme script is hashed, module script is not');
   seen.length = 0;
   res = await t.app.inject({ method: 'PUT', url: '/api/services/media/media/files?visibility=public&name=up.png', headers: { cookie, ...CSRF, 'content-type': 'image/png' }, payload: Buffer.alloc(1000, 1) });
   assert.equal(res.statusCode, 201, res.body);
