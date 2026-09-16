@@ -93,6 +93,10 @@ Every operation goes through the console's own typed API (`/api/services/:id/…
 
 Installable (manifest, icons for iOS and Android, standalone display). The service worker precaches the app shell, serves navigations network-first with an offline fallback, never caches `/api`, and shows a "new version ready" prompt when a deployment lands. An offline badge appears in the header when the network drops.
 
+## Visual checks
+
+Every UI change is checked in a browser at desktop and 375 px widths before it is committed. `ui/build/overflow-probe.js` holds the probe: it reports page overflow, any element whose right edge leaves its parent (clipped icons, inputs wider than their box, text spilling out of nested boxes) and whether scrolling tables and segmented controls show their fade hint. Run it on every page the change touches, then look at the screenshots for anything the probe cannot see (alignment, spacing, truncated labels).
+
 ## Code layout
 
 Class-based; dependencies are injected through constructors, `src/application.js` is the composition root.
