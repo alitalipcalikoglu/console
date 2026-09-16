@@ -11,6 +11,7 @@ import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
 import { NotifyClient } from '../services/notify-client.js';
+import { ShortlinkClient } from '../services/shortlink-client.js';
 import { SessionAuth } from './session-auth.js';
 
 /** @typedef {import('../config.js').Config} Config */
@@ -53,6 +54,19 @@ class Schemas {
       limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' }, cursor: { type: 'string', maxLength: 200 },
       format: { type: 'string', enum: ['ndjson', 'csv'] }, hours: { type: 'string', pattern: '^[0-9]{1,3}$' }, fromSeq: { type: 'string', pattern: '^[0-9]{1,16}$' }, toSeq: { type: 'string', pattern: '^[0-9]{1,16}$' },
     },
+  };
+  static shortlinkQuery = {
+    type: 'object', additionalProperties: false,
+    properties: {
+      q: { type: 'string', maxLength: 200 }, tag: { type: 'string', maxLength: 40 }, status: { type: 'string', enum: ['active', 'disabled', 'expired', 'exhausted'] },
+      createdBy: { type: 'string', maxLength: 64 }, limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|1[0-9][0-9]|200)$' }, cursor: { type: 'string', maxLength: 200 },
+      days: { type: 'string', pattern: '^[0-9]{1,3}$' }, scale: { type: 'string', pattern: '^[0-9]{1,2}$' }, margin: { type: 'string', pattern: '^[0-8]$' },
+    },
+  };
+  static shortlinkBody = {
+    url: { type: 'string', minLength: 8, maxLength: 8192 }, slug: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$' }, permanent: { type: 'boolean' }, enabled: { type: 'boolean' },
+    expiresAt: { type: 'string', maxLength: 40, nullable: true }, maxClicks: { type: 'integer', minimum: 1, maximum: 1000000000, nullable: true },
+    tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 40 } }, note: { type: 'string', maxLength: 500, nullable: true },
   };
   static paging = { type: 'object', additionalProperties: true, properties: { limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' }, cursor: { type: 'string', maxLength: 200 }, status: { type: 'string', maxLength: 20 }, email: { type: 'string', maxLength: 254 }, before: { type: 'string', maxLength: 30 }, action: { type: 'string', maxLength: 60 } } };
 }
@@ -494,6 +508,48 @@ export class ConsoleApi {
       record(request, 'audit.chain.verify', sid(request), { ok: out?.ok, checked: out?.checked, firstBroken: out?.firstBroken ?? null });
       return out;
     });
+
+    // ---------------------------------------------------------------- shortlink
+    const SQ = Schemas.shortlinkQuery;
+    const SB = Schemas.shortlinkBody;
+    api.get('/services/:sid/shortlink/links', { schema: { params: P, querystring: SQ } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), ShortlinkClient).listLinks(query(request)); });
+    api.post('/services/:sid/shortlink/links', { schema: { params: P, body: Schemas.body(['url'], { url: SB.url, slug: SB.slug, permanent: SB.permanent, expiresAt: SB.expiresAt, maxClicks: SB.maxClicks, tags: SB.tags, note: SB.note }) } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const out = /** @type {any} */ (await this.clients.get(sid(request), ShortlinkClient).createLink(/** @type {any} */ (request.body)));
+      record(request, 'shortlink.link.create', out?.link?.code ?? null, { service: sid(request), url: out?.link?.url });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/shortlink/links/:id', { schema: { params: PI, querystring: SQ } }, async (request) => {
+      s.requireSession(request);
+      const c = this.clients.get(sid(request), ShortlinkClient);
+      const [link, stats] = await Promise.all([c.getLink(pid(request)), c.linkStats(pid(request), num(query(request).days))]);
+      return { .../** @type {any} */ (link), stats };
+    });
+    api.get('/services/:sid/shortlink/links/:id/stats', { schema: { params: PI, querystring: SQ } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), ShortlinkClient).linkStats(pid(request), num(query(request).days)); });
+    api.patch('/services/:sid/shortlink/links/:id', { schema: { params: PI, body: { type: 'object', additionalProperties: false, minProperties: 1, properties: { url: SB.url, permanent: SB.permanent, enabled: SB.enabled, expiresAt: SB.expiresAt, maxClicks: SB.maxClicks, tags: SB.tags, note: SB.note } } } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await this.clients.get(sid(request), ShortlinkClient).patchLink(pid(request), /** @type {any} */ (request.body));
+      record(request, 'shortlink.link.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/shortlink/links/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await this.clients.get(sid(request), ShortlinkClient).deleteLink(pid(request));
+      record(request, 'shortlink.link.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.get('/services/:sid/shortlink/links/:id/qr.png', { schema: { params: PI, querystring: SQ }, logLevel: 'warn' }, async (request, reply) => {
+      s.requireSession(request);
+      const q = query(request);
+      const res = await this.clients.get(sid(request), ShortlinkClient).qrPng(pid(request), { scale: num(q.scale), margin: num(q.margin) });
+      if (!res.ok) throw new ServiceError(`${sid(request)} qr responded ${res.status}`, { statusCode: res.status, service: sid(request) });
+      reply.header('content-type', 'image/png');
+      reply.header('content-disposition', `inline; filename="${pid(request)}.png"`);
+      reply.header('cache-control', 'private, max-age=3600');
+      reply.header('content-security-policy', "default-src 'none'; sandbox");
+      return reply.send(Buffer.from(await res.arrayBuffer()));
+    });
+    api.get('/services/:sid/shortlink/stats', { schema: { params: P, querystring: SQ } }, async (request) => { s.requireSession(request); return this.clients.get(sid(request), ShortlinkClient).stats(num(query(request).days)); });
 
     return api;
   }

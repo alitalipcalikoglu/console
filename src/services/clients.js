@@ -3,6 +3,7 @@ import { AuthClient } from './auth-client.js';
 import { GatewayClient } from './gateway-client.js';
 import { MediaClient } from './media-client.js';
 import { NotifyClient } from './notify-client.js';
+import { ShortlinkClient } from './shortlink-client.js';
 import { ServiceClient, ServiceError } from './client.js';
 
 /** @typedef {import('./registry.js').ServiceRegistry} ServiceRegistry */
@@ -32,6 +33,7 @@ export class ServiceClients {
       case 'media': return new MediaClient(def, o);
       case 'gateway': return new GatewayClient(def, o);
       case 'audit': return new AuditClient(def, o);
+      case 'shortlink': return new ShortlinkClient(def, o);
       default: throw new Error(`unknown service type ${def.type}`);
     }
   }

@@ -19,7 +19,7 @@ const fake = createServer((req, res) => {
     const json = (/** @type {number} */ status, /** @type {unknown} */ data) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
     if (p === '/health') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/ready') return res.writeHead(200).end('{"status":"ok"}');
-    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\n');
+    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\n');
     if (p === '/v1/messages' && req.method === 'GET') return json(200, { items: [{ id: 'm1', status: 'failed' }], nextCursor: null });
     if (p === '/v1/messages/m1/retry') return json(200, { id: 'm1', status: 'queued' });
     if (p === '/v1/messages' && req.method === 'POST') return json(202, { id: 'm2', status: 'queued' });
@@ -43,9 +43,17 @@ const fake = createServer((req, res) => {
     if (p === '/v1/events' && req.method === 'GET') return json(200, { items: [{ id: 'e1', seq: 42, action: 'auth.login', outcome: 'failure', source: 'auth' }], nextCursor: null });
     if (p === '/v1/events/export') return res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'content-disposition': 'attachment; filename="audit-x.ndjson"' }).end('{"seq":1}\n{"seq":2}\n');
     if (p === '/v1/events/e1') return json(200, { event: { id: 'e1', seq: 42, action: 'auth.login', meta: { k: 1 } } });
+    if (p === '/v1/stats' && String(req.headers.authorization).endsWith('s'.repeat(40))) return json(200, { days: 7, links: { total: 10, active: 9, clicks: 120 }, clicksInWindow: 40, topLinks: [] });
     if (p === '/v1/stats') return json(200, { windowHours: 24, total: 42, byOutcome: { success: 40, failure: 2 }, bySource: [], topActions: [], topActors: [], topFailures: [] });
     if (p === '/v1/chain/head') return json(200, { seq: 42, hash: 'ab'.repeat(32) });
     if (p === '/v1/chain/verify') return json(200, { ok: true, checked: 42, fromSeq: 1, toSeq: 42, firstBroken: null, head: { seq: 42, hash: 'ab'.repeat(32) } });
+    if (p === '/v1/links' && req.method === 'GET') return json(200, { items: [{ code: 'abc1234', url: 'https://example.com', status: 'active' }], nextCursor: null });
+    if (p === '/v1/links' && req.method === 'POST') return json(201, { link: { code: 'new1234', url: JSON.parse(body).url, status: 'active' } });
+    if (p === '/v1/links/abc1234' && req.method === 'GET') return json(200, { link: { code: 'abc1234', url: 'https://example.com', clicks: 3 } });
+    if (p === '/v1/links/abc1234/stats') return json(200, { code: 'abc1234', total: 3, clicks: 3, visitors: 2, bots: 0, byDay: [], byReferrer: [], byDevice: {}, recent: [] });
+    if (p === '/v1/links/abc1234' && req.method === 'PATCH') return json(200, { link: { code: 'abc1234', enabled: false, status: 'disabled' } });
+    if (p === '/v1/links/abc1234' && req.method === 'DELETE') return res.writeHead(204).end();
+    if (p === '/v1/links/abc1234/qr') return res.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     if (p === '/v1/users' && req.method === 'POST') return json(409, { error: { code: 'EMAIL_TAKEN', message: 'exists' } });
     json(404, { error: { code: 'NOT_FOUND', message: 'nope' } });
   });
@@ -62,7 +70,7 @@ let origin = '';
 before(async () => {
   await new Promise((r) => fake.listen(0, '127.0.0.1', () => r(undefined)));
   origin = `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}`;
-  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin }, publicDir: pub });
+  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin }, publicDir: pub });
 });
 after(async () => { await t.app.close(); fake.close(); rmSync(pub, { recursive: true, force: true }); });
 
@@ -160,7 +168,8 @@ test('overview aggregates health and parsed metrics per service', async () => {
   const res = await t.app.inject({ url: '/api/services/overview', headers: { cookie } });
   assert.equal(res.statusCode, 200);
   const items = res.json().items;
-  assert.equal(items.length, 5);
+  assert.equal(items.length, 6);
+  assert.equal(items.find((/** @type {any} */ i) => i.id === 'shortlink').summary.activeLinks, 9);
   const audit = items.find((/** @type {any} */ i) => i.id === 'audit');
   assert.equal(audit.summary.total, 42);
   assert.equal(audit.summary.headSeq, 42);
@@ -280,4 +289,38 @@ test('audit service: events with filters, detail, stats, chain, streamed export 
   assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 2), ['audit.events.export', 'audit.chain.verify']);
   assert.deepEqual(log.json().items[0].meta, { format: 'csv', filter: { source: 'auth' } });
   assert.equal((await t.app.inject({ url: '/api/services/notify/audit/events', headers: { cookie } })).statusCode, 404, 'wrong service type');
+});
+
+test('shortlink: list, create, detail with stats, patch, delete, QR proxy, overview', async () => {
+  const { cookie } = await signIn(t);
+  const viewer = await signIn(t, { email: 'viewer3@console.local', role: 'viewer' });
+  seen.length = 0;
+  let res = await t.app.inject({ url: '/api/services/shortlink/shortlink/links?status=active&q=example&limit=100', headers: { cookie } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().items[0].code, 'abc1234');
+  assert.equal(seen.at(-1)?.url, '/v1/links?q=example&status=active&limit=100');
+  assert.equal(seen.at(-1)?.headers.authorization, `Bearer ${'s'.repeat(40)}`);
+  res = await t.app.inject({ method: 'POST', url: '/api/services/shortlink/shortlink/links', headers: { cookie: viewer.cookie, ...CSRF }, payload: { url: 'https://example.com/x' } });
+  assert.equal(res.statusCode, 403, 'viewer cannot create');
+  res = await t.app.inject({ method: 'POST', url: '/api/services/shortlink/shortlink/links', headers: { cookie, ...CSRF }, payload: { url: 'https://example.com/x', tags: ['a'], expiresAt: null } });
+  assert.equal(res.statusCode, 201, res.body);
+  assert.equal(res.json().link.code, 'new1234');
+  res = await t.app.inject({ url: '/api/services/shortlink/shortlink/links/abc1234?days=7', headers: { cookie } });
+  assert.equal(res.json().link.clicks, 3);
+  assert.equal(res.json().stats.visitors, 2);
+  assert.ok(seen.some((x) => x.url === '/v1/links/abc1234/stats?days=7'));
+  res = await t.app.inject({ method: 'PATCH', url: '/api/services/shortlink/shortlink/links/abc1234', headers: { cookie, ...CSRF }, payload: { enabled: false } });
+  assert.equal(res.json().link.status, 'disabled');
+  assert.equal((await t.app.inject({ method: 'DELETE', url: '/api/services/shortlink/shortlink/links/abc1234', headers: { cookie, ...CSRF } })).statusCode, 204);
+  res = await t.app.inject({ url: '/api/services/shortlink/shortlink/links/abc1234/qr.png?scale=6', headers: { cookie } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['content-type'], 'image/png');
+  assert.equal(res.rawPayload[0], 0x89);
+  assert.equal(seen.at(-1)?.url, '/v1/links/abc1234/qr?format=png&scale=6');
+  assert.match(String(res.headers['content-security-policy']), /sandbox/);
+  res = await t.app.inject({ url: '/api/services/shortlink/shortlink/stats?days=7', headers: { cookie } });
+  assert.equal(res.json().links.active, 9);
+  const log = await t.app.inject({ url: '/api/audit?action=shortlink.', headers: { cookie } });
+  assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 3), ['shortlink.link.delete', 'shortlink.link.update', 'shortlink.link.create']);
+  assert.equal(log.json().items[2].target, 'new1234');
 });

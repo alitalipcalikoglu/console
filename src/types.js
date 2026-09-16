@@ -68,7 +68,7 @@
  * @property {number} at
  */
 
-/** @typedef {'notify'|'auth'|'media'|'gateway'|'audit'} ServiceType */
+/** @typedef {'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink'} ServiceType */
 
 /**
  * One entry of services.json after validation and secret resolution.

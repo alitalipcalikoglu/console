@@ -4,6 +4,7 @@
     { "id": "auth", "type": "auth", "label": "Auth", "url": "http://10.0.0.2:3002", "apiKeyEnv": "AUTH_API_KEY", "publicUrl": "https://api.example.com" },
     { "id": "media", "type": "media", "label": "Media", "url": "http://10.0.0.3:3003", "apiKeyEnv": "MEDIA_API_KEY" },
     { "id": "gateway", "type": "gateway", "label": "Gateway", "url": "http://10.0.0.4:3000", "metricsTokenEnv": "GATEWAY_METRICS_TOKEN" },
-    { "id": "audit", "type": "audit", "label": "Audit", "url": "http://10.0.0.5:3005", "apiKeyEnv": "AUDIT_API_KEY", "polling": { "enabled": true, "intervalSec": 60 } }
+    { "id": "audit", "type": "audit", "label": "Audit", "url": "http://10.0.0.5:3005", "apiKeyEnv": "AUDIT_API_KEY", "polling": { "enabled": true, "intervalSec": 60 } },
+    { "id": "shortlink", "type": "shortlink", "label": "Shortlink", "url": "http://10.0.0.6:3006", "apiKeyEnv": "SHORTLINK_API_KEY" }
   ]
 }
