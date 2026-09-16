@@ -52,6 +52,8 @@ export class Services {
   async updatePolling(id, polling) {
     const r = /** @type {{ service: ServiceInfo }} */ (await api.patch(`/services/${id}/settings`, { polling }));
     this.items = this.items.map((s) => (s.id === id ? r.service : s));
+    const { poller } = await import('./poller.svelte.js');
+    poller.for(id).reconfigure();
   }
 
   /** Services never probed in this session (first paint of the overview). */

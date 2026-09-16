@@ -6,6 +6,8 @@
   import ErrorBox from '../../lib/components/ErrorBox.svelte';
   import ServiceTabs from '../../lib/components/ServiceTabs.svelte';
   import AutoRefresh from '../../lib/components/AutoRefresh.svelte';
+  import PollStats from '../../lib/components/PollStats.svelte';
+  import { poller } from '../../lib/poller.svelte.js';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { services } from '../../lib/services.svelte.js';
@@ -13,6 +15,9 @@
   import { t, i18n } from '../../lib/i18n.svelte.js';
   /** @type {{ sid: string }} */
   let { sid } = $props();
+  const service = $derived(poller.for(sid));
+  $effect(() => service.subscribe(() => res.load()));
+  const refreshNow = () => service.trigger();
   const fmt = $derived(new Fmt(i18n.lang));
   const res = new Resource(() => api.get(`/services/${sid}/status`));
   $effect(() => { res.load(); });
@@ -26,8 +31,9 @@
 </script>
 
 <Page title={svc?.label ?? t('gateway.title')} desc={t('gateway.desc')}>
-  {#snippet actions()}<AutoRefresh {sid} ontick={() => res.load()} /><button class="btn icon" onclick={() => res.load()} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
+  {#snippet actions()}<AutoRefresh {sid} /><button class="btn icon" onclick={refreshNow} disabled={service.inFlight} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>{/snippet}
   <ServiceTabs type="gateway" {sid} />
+  <PollStats {sid} />
   {#if res.error}<ErrorBox error={res.error} onretry={() => res.load()} />
   {:else if !d}<Skeleton rows={5} />
   {:else}

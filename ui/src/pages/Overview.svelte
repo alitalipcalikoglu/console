@@ -7,29 +7,23 @@
   import { Fmt } from '../lib/format.js';
   import { t, i18n } from '../lib/i18n.svelte.js';
   import { toasts } from '../lib/toast.svelte.js';
-  import { visibility } from '../lib/visibility.svelte.js';
+  import { poller } from '../lib/poller.svelte.js';
   const fmt = $derived(new Fmt(i18n.lang));
   /** @type {Record<string, string>} */
   const ICONS = { notify: 'bell', auth: 'users', media: 'image', gateway: 'route' };
   // First visit probes only the services never seen in this session; afterwards each card refreshes on demand.
   $effect(() => { if (services.loaded) untrack(() => services.refreshMissing()); });
-  /** @param {string} id */
-  async function refresh(id) { try { await services.refreshOne(id); } catch (e) { toasts.error(e); } }
+  /**
+   * Manual refresh goes through the service's poller so it never overlaps a scheduled run.
+   * @param {string} id
+   */
+  async function refresh(id) { try { await poller.for(id).trigger(); } catch (e) { toasts.error(e); } }
 
-  // Per-service polling on the overview: every service whose own setting is enabled ticks at its
-  // own interval while this page is open and the tab is visible. Same setting as its page.
-  /** @type {Record<string, number>} */
-  let countdown = $state({});
+  // Every service registers its status loader with its own poller; the poller decides whether a
+  // timer runs (setting on, tab visible) and at what effective interval.
   $effect(() => {
-    const polled = services.items.filter((s) => s.polling.enabled);
-    if (!visibility.visible || !polled.length) { countdown = {}; return; }
-    countdown = Object.fromEntries(polled.map((s) => [s.id, s.polling.intervalSec]));
-    const timers = polled.map((s) => setInterval(() => {
-      const next = (countdown[s.id] ?? s.polling.intervalSec) - 1;
-      if (next <= 0) { countdown = { ...countdown, [s.id]: s.polling.intervalSec }; services.refreshOne(s.id).catch(() => {}); }
-      else countdown = { ...countdown, [s.id]: next };
-    }, 1000));
-    return () => { for (const id of timers) clearInterval(id); };
+    const unsubs = services.items.map((s) => poller.for(s.id).subscribe(() => services.refreshOne(s.id)));
+    return () => { for (const u of unsubs) u(); };
   });
   /** @param {any} o */
   function tone(o) { return !o ? '' : o.health && o.ready ? 'ok' : o.health ? 'warn' : 'danger'; }
@@ -53,14 +47,15 @@
   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(290px,1fr))">
     {#each services.items as s (s.id)}
       {@const o = services.overview[s.id]}
+      {@const p = poller.for(s.id)}
       <div class="card service">
         <div class="card-body">
           <div class="row" style="margin-bottom:10px">
             <a href="/{s.type}/{s.id}" class="icon-wrap" aria-label={t('overview.open')}><Icon name={ICONS[s.type]} size={20} /></a>
             <div class="grow" style="min-width:90px"><a href="/{s.type}/{s.id}" style="font-weight:650;color:inherit">{s.label}</a><div class="xs faint truncate">{s.type} · <span class="mono">{s.url.replace(/^https?:\/\//, '')}</span></div></div>
             <span class="badge {tone(o)}">{label(o)}</span>
-            {#if s.polling.enabled && countdown[s.id] !== undefined}<span class="xs muted mono" title="{t('poll.label')}: {s.polling.intervalSec} s"><Icon name="clock" size={12} /> {countdown[s.id]}s</span>{/if}
-            <button class="btn ghost icon sm" onclick={() => refresh(s.id)} disabled={services.refreshing[s.id]} aria-label="{t('common.refresh')} {s.label}" title={t('common.refresh')}><Icon name="refresh" size={14} /></button>
+            {#if p.running}<span class="xs muted mono" title="{t('poll.label')}: {p.effectiveSec} s"><Icon name="clock" size={12} /> {p.inFlight ? '…' : `${p.countdown}s`}</span>{/if}
+            <button class="btn ghost icon sm" onclick={() => refresh(s.id)} disabled={p.inFlight} aria-label="{t('common.refresh')} {s.label}" title={t('common.refresh')}><Icon name="refresh" size={14} /></button>
           </div>
           {#if o?.summary?.error}
             <p class="small warn-text">{t('overview.noMetrics')}: {o.summary.error}</p>

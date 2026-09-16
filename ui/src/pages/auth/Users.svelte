@@ -11,6 +11,8 @@
   import ServiceTabs from '../../lib/components/ServiceTabs.svelte';
   import Dialog from '../../lib/components/Dialog.svelte';
   import AutoRefresh from '../../lib/components/AutoRefresh.svelte';
+  import PollStats from '../../lib/components/PollStats.svelte';
+  import { poller } from '../../lib/poller.svelte.js';
   import { api } from '../../lib/api.js';
   import { Resource } from '../../lib/resource.svelte.js';
   import { router } from '../../lib/router.svelte.js';
@@ -21,6 +23,9 @@
   import { toasts } from '../../lib/toast.svelte.js';
   /** @type {{ sid: string }} */
   let { sid } = $props();
+  const service = $derived(poller.for(sid));
+  $effect(() => service.subscribe(() => Promise.all([list.load(), summary.load()])));
+  const refreshNow = () => service.trigger();
   const fmt = $derived(new Fmt(i18n.lang));
   let q = $state(router.query.get('q') ?? '');
   /** @type {any[]} */ let items = $state([]);
@@ -60,11 +65,12 @@
 
 <Page title={svc?.label ?? t('auth.title')} desc={t('auth.desc')}>
   {#snippet actions()}
-    <AutoRefresh {sid} ontick={() => { list.load(); summary.load(); }} />
+    <AutoRefresh {sid} />
     {#if session.isAdmin}<button class="btn primary" onclick={() => { createOpen = true; }}><Icon name="plus" size={16} /> {t('auth.createUser')}</button>{/if}
-    <button class="btn icon" onclick={() => { list.load(); summary.load(); }} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>
+    <button class="btn icon" onclick={refreshNow} disabled={service.inFlight} aria-label={t('common.refresh')}><Icon name="refresh" size={16} /></button>
   {/snippet}
   <ServiceTabs type="auth" {sid} />
+  <PollStats {sid} />
   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin-bottom:20px">
     <Stat label={t('auth.activeUsers')} value={fmt.int(m?.activeUsers)} />
     <Stat label={t('auth.disabledUsers')} value={fmt.int(m?.disabledUsers)} />

@@ -18,6 +18,10 @@ After a deployment the service worker downloads the new bundle in the background
 
 Hashed asset files are served with a one-year immutable cache; `index.html`, `sw.js` and the manifest are always revalidated, so a deploy is visible on the next load.
 
+## Auto-refresh numbers
+
+On a service page with auto-refresh on, a strip under the app bar shows *Setting*, *Effective interval*, *Average*, *Last*, *Runs*, *errors*, *coalesced* and ten bars (one per recent request, amber when a request took longer than the configured interval). "request in flight" means a run is happening now; the manual refresh button is disabled meanwhile so nothing overlaps.
+
 ## Theme and language
 
 **Account → Appearance**: System / Light / Dark; the header moon/sun button toggles too. **Language**: Türkçe / English; strings switch instantly and the choice is remembered per browser. Dates, numbers and relative times follow the chosen language.

@@ -70,6 +70,8 @@ npm run typecheck
 
 Each service may carry `"polling": { "enabled": false, "intervalSec": 30 }`: auto-refresh of that service's page in the UI. Admins change it from the page's app bar (Auto-refresh: Off / 15 s / 30 s / 1 min / 5 min); the console writes it back to `services.json` atomically, so the setting is shared by every admin and survives restarts. There is no global refresh; each service polls at its own interval, on its own page and on the overview card, only while that page is open and the tab is visible.
 
+One scheduler per service owns the timer: requests never overlap (a tick that arrives while a request is in flight is folded into exactly one follow-up run), every run is timed, and the last ten durations drive an adaptive interval of at least 1.3× the average (a service averaging 10 s is asked every 13 s at most, whatever the setting says). When the effective interval changes the old timer is destroyed and a new one started. The service page shows the numbers: setting, effective interval, average, last, runs, errors, coalesced ticks and a bar per request.
+
 Every operation goes through the console's own typed API (`/api/services/:id/…`), which calls the service with the console's key. There is no generic proxy: an action exists in the console only if the service exposes it. Destructive actions ask for confirmation (deleting a user requires typing the email) and every write is recorded in the console's audit log with actor, target and IP.
 
 ## Security notes
