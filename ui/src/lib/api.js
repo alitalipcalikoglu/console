@@ -60,6 +60,8 @@ export class Api {
   post(path, body) { return this.call('POST', path, { body }); }
   /** @template T @param {string} path @param {unknown} body @returns {Promise<T>} */
   patch(path, body) { return this.call('PATCH', path, { body }); }
+  /** @template T @param {string} path @param {unknown} body @returns {Promise<T>} */
+  put(path, body) { return this.call('PUT', path, { body }); }
   /** @template T @param {string} path @returns {Promise<T>} */
   delete(path) { return this.call('DELETE', path); }
 

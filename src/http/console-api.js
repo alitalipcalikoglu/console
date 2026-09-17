@@ -9,6 +9,7 @@ import { AuditClient } from '../services/audit-client.js';
 import { AuthClient } from '../services/auth-client.js';
 import { FlagsClient } from '../services/flags-client.js';
 import { SchedulerClient } from '../services/scheduler-client.js';
+import { RateLimitClient } from '../services/ratelimit-client.js';
 import { SearchClient } from '../services/search-client.js';
 import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
@@ -113,6 +114,15 @@ class Schemas {
   static searchQuery = { type: 'object', additionalProperties: false, properties: { limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' }, offset: { type: 'string', pattern: '^(0|[1-9][0-9]{0,4})$' } } };
   static searchBody = Schemas.body([], { q: { type: 'string', maxLength: 500 }, filters: { type: 'object', maxProperties: 20, additionalProperties: { type: 'array', maxItems: 50, items: { type: 'string', maxLength: 200 } } }, facets: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 64 } }, limit: { type: 'integer', minimum: 1, maximum: 100 }, offset: { type: 'integer', minimum: 0, maximum: 10000 }, highlight: { type: 'boolean' }, sort: { type: 'string', enum: ['relevance', 'newest', 'oldest'] } });
   static searchUpsert = Schemas.body(['documents'], { documents: { type: 'array', minItems: 1, maxItems: 500, items: { type: 'object', required: ['id', 'title'], additionalProperties: false, properties: { id: { type: 'string', minLength: 1, maxLength: 200 }, title: { type: 'string' }, body: { type: 'string' }, tags: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 100 } }, attrs: { type: 'object' }, url: { type: 'string', maxLength: 2048 } } } } });
+  static rlName = { type: 'string', pattern: '^[a-z0-9]+([.\\-_][a-z0-9]+)*$', maxLength: 80 };
+  static rlSubject = { type: 'string', minLength: 1, maxLength: 200, pattern: '^[^\\u0000-\\u001f\\u007f]+$' };
+  static rlLimits = { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['window', 'limit'], properties: { window: { type: 'integer', minimum: 1 }, limit: { type: 'integer', minimum: 0 } } } };
+  static rlPolicyCreate = Schemas.body(['name', 'limits'], { name: Schemas.rlName, description: { type: 'string', maxLength: 500 }, limits: Schemas.rlLimits });
+  static rlPolicyPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: { description: { type: 'string', maxLength: 500 }, limits: Schemas.rlLimits } };
+  static rlOverride = Schemas.body(['limits'], { limits: Schemas.rlLimits, note: { type: 'string', maxLength: 500 }, expiresAt: { type: ['string', 'null'], maxLength: 40 } });
+  static rlCheck = Schemas.body(['policy', 'subject'], { policy: Schemas.rlName, subject: Schemas.rlSubject, cost: { type: 'integer', minimum: 0, maximum: 1000000 }, peek: { type: 'boolean' } });
+  static rlStatsQuery = { type: 'object', additionalProperties: false, properties: { hours: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|[1-6][0-9][0-9]|7[0-1][0-9]|720)$' } } };
+  static rlTopQuery = { type: 'object', additionalProperties: false, properties: { window: { type: 'string', pattern: '^[1-9][0-9]{0,7}$' }, limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' } } };
   static flagsQuery = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -818,6 +828,59 @@ export class ConsoleApi {
       await se(request).deleteDocument(pid(request), psub(request));
       record(request, 'search.document.delete', psub(request), { service: sid(request), index: pid(request) });
       return reply.code(204).send();
+    });
+    // ---------------------------------------------------------------- ratelimit
+    const rl = (/** @type {FastifyRequest} */ r) => this.clients.get(sid(r), RateLimitClient);
+    api.get('/services/:sid/ratelimit/stats', { schema: { params: P } }, async (request) => { s.requireSession(request); return rl(request).stats(); });
+    api.get('/services/:sid/ratelimit/policies', { schema: { params: P } }, async (request) => { s.requireSession(request); return rl(request).listPolicies(); });
+    api.post('/services/:sid/ratelimit/policies', { schema: { params: P, body: Schemas.rlPolicyCreate } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const body = /** @type {{ name: string }} */ (request.body);
+      const out = await rl(request).createPolicy(body);
+      record(request, 'ratelimit.policy.create', body.name, { service: sid(request) });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/ratelimit/policies/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return rl(request).getPolicy(pid(request)); });
+    api.patch('/services/:sid/ratelimit/policies/:id', { schema: { params: PI, body: Schemas.rlPolicyPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await rl(request).patchPolicy(pid(request), /** @type {any} */ (request.body));
+      record(request, 'ratelimit.policy.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/ratelimit/policies/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await rl(request).deletePolicy(pid(request));
+      record(request, 'ratelimit.policy.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.get('/services/:sid/ratelimit/policies/:id/stats', { schema: { params: PI, querystring: Schemas.rlStatsQuery } }, async (request) => { s.requireSession(request); return rl(request).policyStats(pid(request), { hours: num(query(request).hours) }); });
+    api.get('/services/:sid/ratelimit/policies/:id/top', { schema: { params: PI, querystring: Schemas.rlTopQuery } }, async (request) => { s.requireSession(request); const q = query(request); return rl(request).top(pid(request), { window: num(q.window), limit: num(q.limit) }); });
+    api.get('/services/:sid/ratelimit/policies/:id/overrides', { schema: { params: PI, querystring: Schemas.searchQuery } }, async (request) => { s.requireSession(request); const q = query(request); return rl(request).overrides(pid(request), { limit: num(q.limit), offset: num(q.offset) }); });
+    api.put('/services/:sid/ratelimit/policies/:id/overrides/:sub', { schema: { params: PIS, body: Schemas.rlOverride } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await rl(request).setOverride(pid(request), psub(request), /** @type {any} */ (request.body));
+      record(request, 'ratelimit.override.set', psub(request), { service: sid(request), policy: pid(request), body: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/ratelimit/policies/:id/overrides/:sub', { schema: { params: PIS } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await rl(request).deleteOverride(pid(request), psub(request));
+      record(request, 'ratelimit.override.delete', psub(request), { service: sid(request), policy: pid(request) });
+      return reply.code(204).send();
+    });
+    api.get('/services/:sid/ratelimit/policies/:id/subjects/:sub', { schema: { params: PIS } }, async (request) => { s.requireSession(request); return rl(request).subject(pid(request), psub(request)); });
+    api.delete('/services/:sid/ratelimit/policies/:id/subjects/:sub/usage', { schema: { params: PIS } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await rl(request).resetSubject(pid(request), psub(request));
+      record(request, 'ratelimit.subject.reset', psub(request), { service: sid(request), policy: pid(request) });
+      return out;
+    });
+    api.post('/services/:sid/ratelimit/check', { schema: { params: P, body: Schemas.rlCheck } }, async (request) => {
+      s.requireAdmin(request);
+      const body = /** @type {{ policy: string, subject: string, peek?: boolean }} */ (request.body);
+      const out = await rl(request).check(body);
+      if (!body.peek) record(request, 'ratelimit.check', body.subject, { service: sid(request), policy: body.policy, allowed: /** @type {any} */ (out)?.allowed ?? null });
+      return out;
     });
 
     return api;

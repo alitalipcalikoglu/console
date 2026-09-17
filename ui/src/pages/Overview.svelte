@@ -43,6 +43,7 @@
       case 'scheduler': return [[t('sc.enabledJobs'), fmt.int(m.enabledJobs)], [t('sc.nextDue'), m.nextDueSec == null || m.nextDueSec < 0 ? '–' : fmt.duration(m.nextDueSec)], [t('sc.status.succeeded'), fmt.int(m.runsByStatus?.succeeded ?? 0)], [t('sc.status.failed'), fmt.int(m.runsByStatus?.failed ?? 0)]];
       case 'webhook-out': return [[t('wh.activeSubs'), fmt.int(m.activeSubscriptions)], [t('wh.status.disabled'), fmt.int(m.disabledSubscriptions)], [t('wh.backlog'), fmt.int(m.backlog)], [t('wh.dstatus.failed'), fmt.int(m.deliveriesByStatus?.failed ?? 0)]];
       case 'search': return [[t('se.indexes'), fmt.int(m.indexes)], [t('se.documents'), fmt.int(m.documents)], [t('se.searches'), fmt.int(Object.values(m.queriesByIndex ?? {}).reduce((a, n) => a + Number(n), 0))], [t('se.dbSize'), fmt.bytes(m.dbBytes)]];
+      case 'ratelimit': return [[t('rl.policies'), fmt.int(m.policies)], [t('rl.allowedShort'), fmt.int(m.allowed)], [t('rl.deniedShort'), fmt.int(m.denied)], [t('rl.counters'), fmt.int(m.counters)]];
       default: return [];
     }
   }

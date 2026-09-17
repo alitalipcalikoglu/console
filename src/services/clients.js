@@ -4,6 +4,7 @@ import { FlagsClient } from './flags-client.js';
 import { GatewayClient } from './gateway-client.js';
 import { MediaClient } from './media-client.js';
 import { NotifyClient } from './notify-client.js';
+import { RateLimitClient } from './ratelimit-client.js';
 import { SchedulerClient } from './scheduler-client.js';
 import { SearchClient } from './search-client.js';
 import { ShortlinkClient } from './shortlink-client.js';
@@ -42,6 +43,7 @@ export class ServiceClients {
       case 'scheduler': return new SchedulerClient(def, o);
       case 'webhook-out': return new WebhookOutClient(def, o);
       case 'search': return new SearchClient(def, o);
+      case 'ratelimit': return new RateLimitClient(def, o);
       default: throw new Error(`unknown service type ${def.type}`);
     }
   }
