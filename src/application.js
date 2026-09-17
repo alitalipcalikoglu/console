@@ -13,6 +13,7 @@ import { AdminStore } from './store/admin-store.js';
 import { AuditStore } from './store/audit-store.js';
 import { AuditEvents } from './domain/audit-events.js';
 import { AuditClient } from '@atc-web/service-core/audit';
+import { readServiceVersion } from '@atc-web/service-core/fastify';
 import { Lifecycle } from '@atc-web/service-core/lifecycle';
 import { SessionStore } from './store/session-store.js';
 
@@ -25,6 +26,7 @@ export class Application {
   constructor(config, registry) {
     this.config = config;
     this.registry = registry;
+    this.version = readServiceVersion(import.meta.url);
     this.db = new Database(config.dbPath, { backupDir: config.dbBackupDir });
     const keyring = config.secretsKey ? new TotpKeyring({ current: config.secretsKey, previous: config.secretsPreviousKey }) : null;
     // Stage 4/4.1: reseal any totp_secret not already sealed under the current key (plaintext, or
@@ -45,7 +47,7 @@ export class Application {
     });
     this.adminService = new AdminService({ admins: this.admins, sessions: this.sessions, audit: this.audit, hasher: this.hasher });
     this.clients = new ServiceClients(registry, { timeoutMs: config.serviceTimeoutMs });
-    this.api = new ConsoleApi({ config, auth: this.auth, adminService: this.adminService, audit: this.audit, clients: this.clients, db: this.db, limiter: new RateLimiter() });
+    this.api = new ConsoleApi({ config, auth: this.auth, adminService: this.adminService, audit: this.audit, clients: this.clients, db: this.db, limiter: new RateLimiter(), version: this.version });
     /** @type {import('fastify').FastifyInstance|null} */
     this.app = null;
     /** @type {Maintenance|null} */

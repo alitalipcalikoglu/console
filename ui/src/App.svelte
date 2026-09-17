@@ -39,6 +39,7 @@
   import Audit from './pages/Audit.svelte';
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
+  import About from './pages/About.svelte';
   import NotFound from './pages/NotFound.svelte';
 
   const match = $derived(router.match);
@@ -102,6 +103,7 @@
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
       {:else if match.pattern === '/account'}<Account />
+      {:else if match.pattern === '/about'}<About />
       {:else}<NotFound />
       {/if}
     {/key}

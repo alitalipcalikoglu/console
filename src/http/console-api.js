@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
+import { registerInfo } from '@atc-web/service-core/fastify';
 import { AdminService } from '../domain/admin-service.js';
 import { ConsoleError } from '../domain/errors.js';
 import { AuditClient } from '../services/audit-client.js';
@@ -189,9 +190,10 @@ export class ConsoleApi {
    * @param {import('../services/clients.js').ServiceClients} deps.clients
    * @param {import('../db.js').Database} deps.db
    * @param {import('../rate-limiter.js').RateLimiter} deps.limiter
+   * @param {string} deps.version
    * @param {import('../types.js').Logger} [deps.logger]
    */
-  constructor({ config, auth, adminService, audit, clients, db, limiter, logger }) {
+  constructor({ config, auth, adminService, audit, clients, db, limiter, version, logger }) {
     this.config = config;
     this.auth = auth;
     this.adminService = adminService;
@@ -199,6 +201,7 @@ export class ConsoleApi {
     this.clients = clients;
     this.db = db;
     this.limiter = limiter;
+    this.version = version;
     this.logger = logger;
     this.session = new SessionAuth(auth, { secure: config.cookieSecure, ttlMs: config.sessionTtlMin * 60_000 });
     this.csp = ConsoleApi.appCsp(ConsoleApi.inlineScriptHashes(resolve(process.cwd(), config.publicDir, 'index.html')));
@@ -240,6 +243,12 @@ export class ConsoleApi {
       } catch (err) {
         return reply.code(503).send({ status: 'unavailable', error: err instanceof Error ? err.message : String(err) });
       }
+    });
+    registerInfo(app, {
+      service: 'console',
+      version: this.version,
+      capabilities: ['totp', 'admin-roles', 'audit-trail', 'service-proxy'],
+      schemaVersion: this.db.schemaVersion,
     });
 
     await app.register((api) => this.#registerApi(api), { prefix: '/api' });
@@ -398,6 +407,7 @@ export class ConsoleApi {
     // ---------------------------------------------------------------- services: overview
     api.get('/services', async (request) => { s.requireSession(request); return { items: this.clients.registry.describe() }; });
     api.get('/services/overview', async (request) => { s.requireSession(request); return { items: await this.clients.overview() }; });
+    api.get('/services/about', async (request) => { s.requireSession(request); return { items: await this.clients.about() }; });
     api.patch('/services/:sid/settings', { schema: { params: Schemas.serviceParams, body: Schemas.body(['polling'], { polling: Schemas.body(['enabled', 'intervalSec'], { enabled: { type: 'boolean' }, intervalSec: { type: 'integer', minimum: 5, maximum: 3600 } }) }) } }, async (request) => {
       s.requireAdmin(request);
       const id = /** @type {{ sid: string }} */ (request.params).sid;

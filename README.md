@@ -60,11 +60,20 @@ npm run typecheck
 | Search | indexes with document counts, facet keys and last indexing; per-index search page with live query, sort, facet filters (kept in the URL), highlighted results and a document dialog | create and edit indexes (weights, facet keys), clear, delete, delete a document |
 | Rate limits | policies with windows, overrides, active subjects and 24 h allowed/denied; per-policy page with hourly decision bars (24 h / 3 d / 7 d), subject lookup showing every window's usage, top consumers per window, overrides with expiry | create and edit policies (windows editor), add/edit/delete overrides (custom limits or block, note, expiry), reset a subject's usage, delete |
 | Geo | IP database state (type, build date, file, lookups), IP lookup with country/region/city/location/time zone/ASN, phone normalization, distance; reference tables (countries, currencies, time zones) in any language; place collections with counts; collection page with places, nearby test and JSON upload | create and edit collections, upload places, delete a place, clear, delete, reload the IP database |
+| About | version, API contract version, real capabilities, schema version and service-core version per service, read live from each service's own `/v1/info` — never a hardcoded list, degrades gracefully (shown as unavailable) for an unreachable or too-old service | refresh |
 | Console log | who did what in the console, filter by action prefix | – |
 | Admins | console accounts, roles, 2FA state, last login | add, change role, disable, set password, unlock, delete |
 | Account | own sessions | change password, enable/disable TOTP (QR code), sign out other sessions, theme, language |
 
 `viewer` accounts see everything and change nothing; write buttons are hidden and the API refuses mutations with `403`.
+
+## Boundaries
+
+**Purpose:** an operator's admin UI and read/act layer over every other service.
+
+**Responsibilities:** admin accounts with roles and TOTP 2FA; per-service HTTP clients for viewing and administering state; its own audit trail of admin actions.
+
+**Non-responsibilities:** console ≠ source of truth for service state — every view is a live read through each service's own HTTP API, never a direct read of another service's database (confirmed: no such access exists in this codebase). Console does not implement business logic itself — it is a client of every other service's domain rules, not a domain owner. It does not proxy end-user traffic (that's `gateway`'s job).
 
 ## How it connects
 

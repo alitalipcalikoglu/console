@@ -158,6 +158,30 @@ export class ServiceClient {
     return { health: health.ok, ready: ready.ok, readyDetail: ready.detail, latencyMs: Date.now() - started };
   }
 
+  /**
+   * `/v1/info` (Stage 7), tolerant of an unreachable service, a service too old to have the
+   * route (404), or a malformed body — the console's About view must degrade gracefully in a
+   * mixed-version rollout, never crash the page for one bad or outdated service.
+   * @returns {Promise<{ ok: true, data: Record<string, unknown> } | { ok: false, error: string }>}
+   */
+  async info() {
+    let res;
+    try {
+      res = await this.request('GET', '/v1/info', { auth: 'none', timeoutMs: 3_000 });
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+    if (!res.ok) return { ok: false, error: res.status === 404 ? 'no /v1/info (older version)' : `responded ${res.status}` };
+    const text = await res.text();
+    try {
+      const data = JSON.parse(text);
+      if (!data || typeof data !== 'object') return { ok: false, error: 'malformed /v1/info response' };
+      return { ok: true, data };
+    } catch {
+      return { ok: false, error: 'malformed /v1/info response (not JSON)' };
+    }
+  }
+
   /** Raw Prometheus samples, or null when the service exposes no metrics to us. */
   async metricsSamples() {
     const auth = this.def.type === 'gateway' ? 'metrics' : 'apiKey';

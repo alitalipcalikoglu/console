@@ -69,6 +69,19 @@ export class ServiceClients {
     return c;
   }
 
+  /**
+   * `/v1/info` for every configured service, in parallel — Stage 7's About view. Never throws for
+   * one bad service: an unreachable, too-old (no route yet) or malformed response just becomes
+   * `{ ok: false, error }` for that one entry, same as {@link ServiceClient#info}.
+   */
+  async about() {
+    return Promise.all(this.registry.services.map(async (def) => {
+      const client = /** @type {ServiceClient} */ (this.clients.get(def.id));
+      const info = await client.info();
+      return { id: def.id, type: def.type, label: def.label, url: def.url, ...info };
+    }));
+  }
+
   /** Health, readiness and headline numbers for every service, in parallel; failures are per service. */
   async overview() {
     return Promise.all(this.registry.services.map(async (def) => {

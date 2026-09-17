@@ -19,6 +19,7 @@ const fake = createServer((req, res) => {
     const json = (/** @type {number} */ status, /** @type {unknown} */ data) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
     if (p === '/health') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/ready') return res.writeHead(200).end('{"status":"ok"}');
+    if (p === '/v1/info') return json(200, { service: 'fake', version: '1.2.3', apiVersion: 'v1', capabilities: ['x'], schemaVersion: 4, serviceCore: '1.10.0' });
     if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\nflags_total{state="active"} 3\nflags_total{state="archived"} 1\nflags_enabled{env="prod"} 2\nflags_evaluations_total{env="prod"} 77\nscheduler_jobs{state="enabled"} 5\nscheduler_jobs{state="disabled"} 1\nscheduler_runs{status="succeeded"} 40\nscheduler_runs{status="failed"} 2\nscheduler_runs_finished_total{status="failed"} 1\nscheduler_in_flight 0\nscheduler_next_due_seconds 120\nwebhook_subscriptions{status="active"} 4\nwebhook_subscriptions{status="disabled"} 1\nwebhook_events_total 90\nwebhook_deliveries{status="succeeded"} 80\nwebhook_deliveries{status="failed"} 3\nwebhook_backlog 2\nwebhook_oldest_queued_age_seconds 30\nwebhook_deliveries_finished_total{status="failed"} 1\nsearch_indexes 2\nsearch_documents_total 150\nsearch_queries_total{index="products"} 30\nsearch_db_bytes 4096\nratelimit_policies 3\nratelimit_decisions_total{policy="api",decision="allowed"} 500\nratelimit_decisions_total{policy="api",decision="denied"} 7\nratelimit_decisions_total{policy="login",decision="denied"} 3\nratelimit_counters 12\nratelimit_db_bytes 2048\ngeo_ip_lookups_total{result="hit"} 40\ngeo_ip_lookups_total{result="miss"} 2\ngeo_database_loaded 1\ngeo_database_build_epoch 1758067200\ngeo_collections 1\ngeo_places_total 3\ngeo_db_bytes 4096\n');
     if (p === '/v1/messages' && req.method === 'GET') return json(200, { items: [{ id: 'm1', status: 'failed' }], nextCursor: null });
     if (p === '/v1/messages/m1/retry') return json(200, { id: 'm1', status: 'queued' });
@@ -162,6 +163,18 @@ before(async () => {
 });
 after(async () => { await t.app.close(); fake.close(); rmSync(pub, { recursive: true, force: true }); });
 
+test('GET /v1/info reports console\'s own identity and capabilities (Stage 7)', async () => {
+  const res = await t.app.inject('/v1/info');
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.service, 'console');
+  assert.equal(body.version, '1.0.0');
+  assert.equal(body.apiVersion, 'v1');
+  assert.deepEqual(body.capabilities, ['totp', 'admin-roles', 'audit-trail', 'service-proxy']);
+  assert.equal(typeof body.schemaVersion, 'number');
+  assert.equal(typeof body.serviceCore, 'string');
+});
+
 test('static app: index, SPA fallback, hashed assets immutable, API 404 stays JSON', async () => {
   let res = await t.app.inject('/');
   assert.equal(res.statusCode, 200);
@@ -284,6 +297,37 @@ test('overview aggregates health and parsed metrics per service', async () => {
   assert.equal(gw.summary.routes.web.requests['2xx'], 10);
   assert.equal(gw.summary.routes.web.p50Ms, 50);
   assert.equal(gw.summary.rejected.rate_limited, 2);
+});
+
+test('about aggregates /v1/info per service; unreachable and malformed responses degrade gracefully instead of failing the whole request (Stage 7)', async () => {
+  const { cookie } = await signIn(t);
+  const res = await t.app.inject({ url: '/api/services/about', headers: { cookie } });
+  assert.equal(res.statusCode, 200);
+  const items = res.json().items;
+  assert.equal(items.length, 12);
+  const notify = items.find((/** @type {any} */ i) => i.id === 'notify');
+  assert.equal(notify.ok, true);
+  assert.deepEqual(notify.data, { service: 'fake', version: '1.2.3', apiVersion: 'v1', capabilities: ['x'], schemaVersion: 4, serviceCore: '1.10.0' });
+
+  const dead = await testConsole({ urls: { notify: 'http://127.0.0.1:1' } });
+  const d = await signIn(dead);
+  const deadRes = await dead.app.inject({ url: '/api/services/about', headers: { cookie: d.cookie } });
+  const deadNotify = deadRes.json().items.find((/** @type {any} */ i) => i.id === 'notify');
+  assert.equal(deadNotify.ok, false);
+  assert.match(deadNotify.error, /unreachable/);
+  await dead.app.close();
+
+  const stale = createServer((_req, res2) => res2.writeHead(200, { 'content-type': 'application/json' }).end('not json'));
+  await new Promise((r) => stale.listen(0, '127.0.0.1', () => r(undefined)));
+  const staleOrigin = `http://127.0.0.1:${/** @type {any} */ (stale.address()).port}`;
+  const oldVersion = await testConsole({ urls: { notify: staleOrigin } });
+  const o = await signIn(oldVersion);
+  const oldRes = await oldVersion.app.inject({ url: '/api/services/about', headers: { cookie: o.cookie } });
+  const oldNotify = oldRes.json().items.find((/** @type {any} */ i) => i.id === 'notify');
+  assert.equal(oldNotify.ok, false, 'malformed body never crashes the endpoint or the aggregate response');
+  assert.match(oldNotify.error, /malformed/);
+  await oldVersion.app.close();
+  await new Promise((r) => stale.close(() => r(undefined)));
 });
 
 test('media: list, thumbnail proxy, streaming upload, delete, ticket', async () => {

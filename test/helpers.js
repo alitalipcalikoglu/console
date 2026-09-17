@@ -77,7 +77,7 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   });
   const adminService = new AdminService({ admins, sessions, audit, hasher, now: () => clock.now });
   const clients = new ServiceClients(testRegistry(urls), { timeoutMs: 3000 });
-  const api = new ConsoleApi({ config, auth, adminService, audit, clients, db, limiter: new RateLimiter(), logger: silentLog });
+  const api = new ConsoleApi({ config, auth, adminService, audit, clients, db, limiter: new RateLimiter(), version: '1.0.0', logger: silentLog });
   const app = await api.build();
   api.registerUpload(app);
   await app.ready();

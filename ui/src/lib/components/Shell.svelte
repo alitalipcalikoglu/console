@@ -29,6 +29,7 @@
     <div class="section">{t('nav.console')}</div>
     <a href="/audit" aria-current={active('/audit') ? 'page' : undefined}><Icon name="list" /> {t('nav.audit')}</a>
     {#if session.isAdmin}<a href="/admins" aria-current={active('/admins') ? 'page' : undefined}><Icon name="shield" /> {t('nav.admins')}</a>{/if}
+    <a href="/about" aria-current={active('/about') ? 'page' : undefined}><Icon name="info" /> {t('nav.about')}</a>
     <a href="/account" aria-current={active('/account') ? 'page' : undefined}><Icon name="user" /> {t('nav.account')}</a>
     <div class="grow"></div>
     {#if pwa.canInstall}<button class="btn sm" onclick={() => pwa.install()}><Icon name="download" size={14} /> {t('common.install')}</button>{/if}
