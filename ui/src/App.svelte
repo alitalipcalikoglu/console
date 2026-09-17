@@ -33,6 +33,9 @@
   import IndexDetail from './pages/search/IndexDetail.svelte';
   import Policies from './pages/ratelimit/Policies.svelte';
   import PolicyDetail from './pages/ratelimit/PolicyDetail.svelte';
+  import GeoLookup from './pages/geo/Lookup.svelte';
+  import GeoReference from './pages/geo/Reference.svelte';
+  import CollectionDetail from './pages/geo/CollectionDetail.svelte';
   import Audit from './pages/Audit.svelte';
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
@@ -93,6 +96,9 @@
       {:else if match.pattern === '/search/:sid/indexes/:id'}<IndexDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/ratelimit/:sid'}<Policies sid={match.params.sid} />
       {:else if match.pattern === '/ratelimit/:sid/policies/:id'}<PolicyDetail sid={match.params.sid} id={match.params.id} />
+      {:else if match.pattern === '/geo/:sid'}<GeoLookup sid={match.params.sid} />
+      {:else if match.pattern === '/geo/:sid/reference'}<GeoReference sid={match.params.sid} />
+      {:else if match.pattern === '/geo/:sid/collections/:id'}<CollectionDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
       {:else if match.pattern === '/account'}<Account />

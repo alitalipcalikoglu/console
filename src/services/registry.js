@@ -4,7 +4,7 @@ import { ConfigError } from '../config.js';
 /** @typedef {import('../types.js').ServiceDef} ServiceDef */
 /** @typedef {import('../types.js').ServiceType} ServiceType */
 
-const TYPES = new Set(['notify', 'auth', 'media', 'gateway', 'audit', 'shortlink', 'flags', 'scheduler', 'webhook-out', 'search', 'ratelimit']);
+const TYPES = new Set(['notify', 'auth', 'media', 'gateway', 'audit', 'shortlink', 'flags', 'scheduler', 'webhook-out', 'search', 'ratelimit', 'geo']);
 
 /**
  * Loads and validates services.json; resolves secrets from the environment. Keeps the raw

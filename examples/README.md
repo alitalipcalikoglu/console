@@ -19,6 +19,7 @@ Walkthroughs for every feature of the admin console. Screens are described as th
 | [Operating webhooks](webhook-out.md) | Subscriptions and their one-time secret, test events, rotation, replay, deliveries and redelivery |
 | [Searching from the console](search.md) | Indexes, the search page with facets and highlights, documents, clearing and deleting |
 | [Rate limits from the console](ratelimit.md) | Policies and windows, decision charts, subject lookup and reset, overrides and blocks |
+| [Geo from the console](geo.md) | IP, phone and distance lookups, the IP database, reference tables, place collections and nearby search |
 | [Console log](audit.md) | What the console records about its own admins, filtering, retention |
 | [Installing as an app and updates](pwa.md) | Install on phone/desktop, offline behaviour, update prompt, theme and language |
 | [Operations](operations.md) | Health, environment, PM2, Docker, TLS, backups |

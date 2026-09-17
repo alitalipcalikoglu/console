@@ -10,6 +10,7 @@
     { "id": "scheduler", "type": "scheduler", "label": "Scheduler", "url": "http://10.0.0.8:3008", "apiKeyEnv": "SCHEDULER_API_KEY" },
     { "id": "webhooks", "type": "webhook-out", "label": "Webhooks", "url": "http://10.0.0.9:3009", "apiKeyEnv": "WEBHOOK_OUT_API_KEY" },
     { "id": "search", "type": "search", "label": "Search", "url": "http://10.0.0.10:3010", "apiKeyEnv": "SEARCH_API_KEY" },
-    { "id": "ratelimit", "type": "ratelimit", "label": "Rate limits", "url": "http://10.0.0.11:3011", "apiKeyEnv": "RATELIMIT_API_KEY" }
+    { "id": "ratelimit", "type": "ratelimit", "label": "Rate limits", "url": "http://10.0.0.11:3011", "apiKeyEnv": "RATELIMIT_API_KEY" },
+    { "id": "geo", "type": "geo", "label": "Geo", "url": "http://10.0.0.12:3012", "apiKeyEnv": "GEO_API_KEY" }
   ]
 }

@@ -9,6 +9,7 @@ import { AuditClient } from '../services/audit-client.js';
 import { AuthClient } from '../services/auth-client.js';
 import { FlagsClient } from '../services/flags-client.js';
 import { SchedulerClient } from '../services/scheduler-client.js';
+import { GeoClient } from '../services/geo-client.js';
 import { RateLimitClient } from '../services/ratelimit-client.js';
 import { SearchClient } from '../services/search-client.js';
 import { ServiceError } from '../services/client.js';
@@ -123,6 +124,18 @@ class Schemas {
   static rlCheck = Schemas.body(['policy', 'subject'], { policy: Schemas.rlName, subject: Schemas.rlSubject, cost: { type: 'integer', minimum: 0, maximum: 1000000 }, peek: { type: 'boolean' } });
   static rlStatsQuery = { type: 'object', additionalProperties: false, properties: { hours: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|[1-6][0-9][0-9]|7[0-1][0-9]|720)$' } } };
   static rlTopQuery = { type: 'object', additionalProperties: false, properties: { window: { type: 'string', pattern: '^[1-9][0-9]{0,7}$' }, limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' } } };
+  static geoLang = { type: 'string', minLength: 2, maxLength: 35, pattern: '^[A-Za-z0-9-]+$' };
+  static geoIpQuery = { type: 'object', additionalProperties: false, required: ['ip'], properties: { ip: { type: 'string', minLength: 2, maxLength: 64 }, lang: Schemas.geoLang } };
+  static geoIpBatch = Schemas.body(['ips'], { ips: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'string', minLength: 2, maxLength: 64 } }, lang: Schemas.geoLang });
+  static geoCountriesQuery = { type: 'object', additionalProperties: false, properties: { q: { type: 'string', maxLength: 100 }, continent: { type: 'string', pattern: '^[A-Za-z]{2}$' }, eu: { type: 'string', enum: ['true', 'false'] }, currency: { type: 'string', pattern: '^[A-Za-z]{3}$' }, lang: Schemas.geoLang } };
+  static geoTimezonesQuery = { type: 'object', additionalProperties: false, properties: { country: { type: 'string', minLength: 2, maxLength: 3 }, q: { type: 'string', maxLength: 100 }, lang: Schemas.geoLang } };
+  static geoPhoneQuery = { type: 'object', additionalProperties: false, required: ['number'], properties: { number: { type: 'string', minLength: 1, maxLength: 40 }, country: { type: 'string', minLength: 2, maxLength: 3 } } };
+  static geoPair = { type: 'string', pattern: '^\\s*-?\\d{1,3}(\\.\\d+)?\\s*,\\s*-?\\d{1,3}(\\.\\d+)?\\s*$' };
+  static geoDistanceQuery = { type: 'object', additionalProperties: false, required: ['from', 'to'], properties: { from: Schemas.geoPair, to: Schemas.geoPair } };
+  static geoCollectionCreate = Schemas.body(['name'], { name: Schemas.rlName, description: { type: 'string', maxLength: 500 } });
+  static geoCollectionPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: { description: { type: 'string', maxLength: 500 } } };
+  static geoPlaces = Schemas.body(['places'], { places: { type: 'array', minItems: 1, maxItems: 5000, items: { type: 'object', additionalProperties: false, required: ['id', 'name', 'lat', 'lng'], properties: { id: { type: 'string', minLength: 1, maxLength: 200 }, name: { type: 'string', maxLength: 200 }, lat: { type: 'number' }, lng: { type: 'number' }, attrs: { type: 'object', maxProperties: 50 } } } } });
+  static geoNearbyQuery = { type: 'object', additionalProperties: false, required: ['lat', 'lng'], properties: { lat: { type: 'string', pattern: '^-?\\d{1,3}(\\.\\d+)?$' }, lng: { type: 'string', pattern: '^-?\\d{1,3}(\\.\\d+)?$' }, radius: { type: 'string', pattern: '^\\d{1,5}(\\.\\d+)?$' }, limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' } } };
   static flagsQuery = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -882,6 +895,66 @@ export class ConsoleApi {
       if (!body.peek) record(request, 'ratelimit.check', body.subject, { service: sid(request), policy: body.policy, allowed: /** @type {any} */ (out)?.allowed ?? null });
       return out;
     });
+    // ---------------------------------------------------------------- geo
+    const ge = (/** @type {FastifyRequest} */ r) => this.clients.get(sid(r), GeoClient);
+    api.get('/services/:sid/geo/stats', { schema: { params: P } }, async (request) => { s.requireSession(request); return ge(request).stats(); });
+    api.get('/services/:sid/geo/database', { schema: { params: P } }, async (request) => { s.requireSession(request); return ge(request).database(); });
+    api.post('/services/:sid/geo/database/reload', { schema: { params: P } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await ge(request).reloadDatabase();
+      record(request, 'geo.database.reload', sid(request), { service: sid(request), type: /** @type {any} */ (out)?.city?.type ?? null });
+      return out;
+    });
+    api.get('/services/:sid/geo/ip', { schema: { params: P, querystring: Schemas.geoIpQuery } }, async (request) => { s.requireSession(request); const q = query(request); return ge(request).ip(/** @type {string} */ (q.ip), { lang: q.lang }); });
+    api.post('/services/:sid/geo/ip/batch', { schema: { params: P, body: Schemas.geoIpBatch } }, async (request) => { s.requireSession(request); const b = /** @type {{ ips: string[], lang?: string }} */ (request.body); return ge(request).ipBatch(b.ips, b.lang); });
+    api.get('/services/:sid/geo/countries', { schema: { params: P, querystring: Schemas.geoCountriesQuery } }, async (request) => { s.requireSession(request); return ge(request).countries(query(request)); });
+    api.get('/services/:sid/geo/countries/:id', { schema: { params: PI, querystring: Schemas.geoTimezonesQuery } }, async (request) => { s.requireSession(request); return ge(request).country(pid(request), { lang: query(request).lang }); });
+    api.get('/services/:sid/geo/currencies', { schema: { params: P, querystring: Schemas.geoTimezonesQuery } }, async (request) => { s.requireSession(request); return ge(request).currencies({ lang: query(request).lang }); });
+    api.get('/services/:sid/geo/timezones', { schema: { params: P, querystring: Schemas.geoTimezonesQuery } }, async (request) => { s.requireSession(request); return ge(request).timezones(query(request)); });
+    api.get('/services/:sid/geo/phone', { schema: { params: P, querystring: Schemas.geoPhoneQuery } }, async (request) => { s.requireSession(request); return ge(request).phone(/** @type {any} */ (query(request))); });
+    api.get('/services/:sid/geo/distance', { schema: { params: P, querystring: Schemas.geoDistanceQuery } }, async (request) => { s.requireSession(request); return ge(request).distance(/** @type {any} */ (query(request))); });
+    api.get('/services/:sid/geo/collections', { schema: { params: P } }, async (request) => { s.requireSession(request); return ge(request).listCollections(); });
+    api.post('/services/:sid/geo/collections', { schema: { params: P, body: Schemas.geoCollectionCreate } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const body = /** @type {{ name: string }} */ (request.body);
+      const out = await ge(request).createCollection(body);
+      record(request, 'geo.collection.create', body.name, { service: sid(request) });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/geo/collections/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return ge(request).getCollection(pid(request)); });
+    api.patch('/services/:sid/geo/collections/:id', { schema: { params: PI, body: Schemas.geoCollectionPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await ge(request).patchCollection(pid(request), /** @type {any} */ (request.body));
+      record(request, 'geo.collection.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/geo/collections/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await ge(request).deleteCollection(pid(request));
+      record(request, 'geo.collection.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.post('/services/:sid/geo/collections/:id/clear', { schema: { params: PI } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await ge(request).clearCollection(pid(request));
+      record(request, 'geo.collection.clear', pid(request), { service: sid(request), removed: /** @type {any} */ (out)?.removed ?? null });
+      return out;
+    });
+    api.put('/services/:sid/geo/collections/:id/places', { schema: { params: PI, body: Schemas.geoPlaces } }, async (request) => {
+      s.requireAdmin(request);
+      const places = /** @type {{ places: object[] }} */ (request.body).places;
+      const out = await ge(request).upsertPlaces(pid(request), places);
+      record(request, 'geo.places.upsert', pid(request), { service: sid(request), count: places.length });
+      return out;
+    });
+    api.get('/services/:sid/geo/collections/:id/places', { schema: { params: PI, querystring: Schemas.searchQuery } }, async (request) => { s.requireSession(request); const q = query(request); return ge(request).places(pid(request), { limit: num(q.limit), offset: num(q.offset) }); });
+    api.delete('/services/:sid/geo/collections/:id/places/:sub', { schema: { params: PIS } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await ge(request).deletePlace(pid(request), psub(request));
+      record(request, 'geo.place.delete', psub(request), { service: sid(request), collection: pid(request) });
+      return reply.code(204).send();
+    });
+    api.get('/services/:sid/geo/collections/:id/nearby', { schema: { params: PI, querystring: Schemas.geoNearbyQuery } }, async (request) => { s.requireSession(request); return ge(request).nearby(pid(request), /** @type {any} */ (query(request))); });
 
     return api;
   }

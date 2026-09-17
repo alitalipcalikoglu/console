@@ -2,6 +2,7 @@ import { AuditClient } from './audit-client.js';
 import { AuthClient } from './auth-client.js';
 import { FlagsClient } from './flags-client.js';
 import { GatewayClient } from './gateway-client.js';
+import { GeoClient } from './geo-client.js';
 import { MediaClient } from './media-client.js';
 import { NotifyClient } from './notify-client.js';
 import { RateLimitClient } from './ratelimit-client.js';
@@ -44,6 +45,7 @@ export class ServiceClients {
       case 'webhook-out': return new WebhookOutClient(def, o);
       case 'search': return new SearchClient(def, o);
       case 'ratelimit': return new RateLimitClient(def, o);
+      case 'geo': return new GeoClient(def, o);
       default: throw new Error(`unknown service type ${def.type}`);
     }
   }
