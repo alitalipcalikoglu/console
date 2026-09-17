@@ -1,10 +1,6 @@
-export class ConfigError extends Error {
-  /** @param {string} message */
-  constructor(message) {
-    super(message);
-    this.name = 'ConfigError';
-  }
-}
+import { ConfigError, EnvReader } from '@atc-web/service-core/config';
+
+export { ConfigError };
 
 /** Validated process configuration. Service connections live in services.json (see ServiceRegistry). */
 export class Config {
@@ -62,45 +58,5 @@ export class Config {
       serviceTimeoutMs: r.integer('SERVICE_TIMEOUT_MS', 10_000, { min: 500, max: 120_000 }),
       rateLimitMax: r.integer('RATE_LIMIT_MAX', 30, { min: 1 }),
     });
-  }
-}
-
-/** Typed accessors over a raw environment map. */
-class EnvReader {
-  /** @param {NodeJS.ProcessEnv} env */
-  constructor(env) {
-    this.env = env;
-  }
-
-  /** @param {string} name */
-  optional(name) {
-    return this.env[name]?.trim() ?? '';
-  }
-
-  /**
-   * @param {string} name
-   * @param {number} fallback
-   * @param {{ min?: number, max?: number }} [range]
-   */
-  integer(name, fallback, range = {}) {
-    const raw = this.optional(name);
-    if (raw === '') return fallback;
-    if (!/^-?\d+$/.test(raw)) throw new ConfigError(`${name} must be an integer, got "${raw}"`);
-    const n = Number(raw);
-    if (range.min !== undefined && n < range.min) throw new ConfigError(`${name} must be >= ${range.min}`);
-    if (range.max !== undefined && n > range.max) throw new ConfigError(`${name} must be <= ${range.max}`);
-    return n;
-  }
-
-  /**
-   * @param {string} name
-   * @param {boolean} fallback
-   */
-  boolean(name, fallback) {
-    const raw = this.optional(name);
-    if (raw === '') return fallback;
-    if (raw === 'true' || raw === '1') return true;
-    if (raw === 'false' || raw === '0') return false;
-    throw new ConfigError(`${name} must be true or false, got "${raw}"`);
   }
 }

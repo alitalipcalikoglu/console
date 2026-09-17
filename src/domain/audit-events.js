@@ -1,4 +1,4 @@
-/** @typedef {import('../net/audit-client.js').AuditEvent} AuditEvent */
+/** @typedef {import('@atc-web/service-core/audit').AuditEvent} AuditEvent */
 
 /**
  * Maps console log entries onto audit-service events: `console.<action>` with the admin as actor.

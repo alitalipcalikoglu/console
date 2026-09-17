@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Database } from '../src/db.js';
 import { AuditEvents } from '../src/domain/audit-events.js';
-import { AuditClient } from '../src/net/audit-client.js';
+import { AuditClient } from '@atc-web/service-core/audit';
 import { AuditStore } from '../src/store/audit-store.js';
 
 test('console log entries are forwarded as console.* audit events', () => {
