@@ -1,3 +1,4 @@
+import { SecretBox } from '@atc-web/service-core/secrets';
 import { Config } from './config.js';
 import { PasswordHasher } from './crypto/password.js';
 import { Database } from './db.js';
@@ -25,7 +26,9 @@ export class Application {
     this.config = config;
     this.registry = registry;
     this.db = new Database(config.dbPath, { backupDir: config.dbBackupDir });
-    this.admins = new AdminStore(this.db);
+    const box = config.secretsKey ? new SecretBox(config.secretsKey) : null;
+    AdminStore.reseal(this.db, box); // Stage 4: re-seal any pre-existing plaintext totp_secret; no-op when there is none
+    this.admins = new AdminStore(this.db, box);
     this.sessions = new SessionStore(this.db);
     this.audit = new AuditStore(this.db);
     // The console log is also forwarded to the first configured audit service (its key must have the write role).
@@ -34,7 +37,7 @@ export class Application {
     this.audit.onRecord = (e, at) => { this.forwarder.record(AuditEvents.fromLogEntry(e, at)); };
     this.hasher = new PasswordHasher({ logN: config.scryptLogN });
     this.auth = new ConsoleAuth({
-      admins: this.admins, sessions: this.sessions, audit: this.audit, hasher: this.hasher, log: /** @type {any} */ (console),
+      admins: this.admins, sessions: this.sessions, audit: this.audit, hasher: this.hasher, box, log: /** @type {any} */ (console),
       options: { sessionTtlMs: config.sessionTtlMin * 60_000, sessionIdleMs: config.sessionIdleMin * 60_000, loginMaxFailures: config.loginMaxFailures, lockoutMs: config.loginLockoutMin * 60_000, totpIssuer: config.totpIssuer },
     });
     this.adminService = new AdminService({ admins: this.admins, sessions: this.sessions, audit: this.audit, hasher: this.hasher });

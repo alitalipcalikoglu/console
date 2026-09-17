@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
+import { SecretBox } from '@atc-web/service-core/secrets';
 import { Config, ConfigError } from '../src/config.js';
 import { Totp } from '../src/crypto/totp.js';
 import { ServiceRegistry } from '../src/services/registry.js';
@@ -37,7 +39,9 @@ test('Totp generates RFC 6238 codes, tolerates one step of drift, rejects garbag
 });
 
 test('AdminStore: create, lookup, lockout, TOTP enrolment flags, admin count', () => {
-  const admins = new AdminStore(testDb());
+  const db = testDb();
+  const box = new SecretBox(randomBytes(32));
+  const admins = new AdminStore(db, box);
   const a = admins.create({ email: ' Ali@Example.com ', name: ' Ali ', passwordHash: 'h', role: 'admin' }, 1000);
   assert.equal(a.email, 'ali@example.com');
   assert.equal(a.name, 'Ali');
@@ -60,7 +64,11 @@ test('AdminStore: create, lookup, lockout, TOTP enrolment flags, admin count', (
   assert.equal(admins.byId(a.id)?.locked_until, null);
 
   admins.setTotpSecret(a.id, 'SECRET');
+  const stored = admins.byId(a.id)?.totp_secret;
+  assert.ok(stored && SecretBox.isSealed(stored), 'stored sealed, not plaintext');
+  assert.equal(box.open(/** @type {string} */ (stored)), 'SECRET');
   assert.equal(admins.byId(a.id)?.totp_enabled_at, null, 'enrolling, not enabled');
+  assert.throws(() => new AdminStore(db, null).setTotpSecret(a.id, 'X'), /SecretBox/, 'without a box, enrolment refuses rather than storing plaintext');
   assert.equal(admins.enableTotp(a.id, 30), true);
   assert.equal(admins.byId(a.id)?.totp_enabled_at, 30);
   admins.disableTotp(a.id);

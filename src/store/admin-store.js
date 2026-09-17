@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { ConfigError } from '@atc-web/service-core/config';
+import { SecretBox } from '@atc-web/service-core/secrets';
 
 /** @typedef {import('../db.js').Database} Database */
 /** @typedef {import('../types.js').AdminRow} AdminRow */
@@ -8,8 +10,15 @@ import { randomUUID } from 'node:crypto';
 export class AdminStore {
   static COLUMNS = 'id, email, name, password_hash, role, status, totp_secret, totp_enabled_at, failed_logins, locked_until, created_at, updated_at, last_login_at';
 
-  /** @param {Database} db */
-  constructor(db) {
+  /**
+   * @param {Database} db
+   * @param {import('@atc-web/service-core/secrets').SecretBox|null} [box] Seals `totp_secret` on
+   *   write (Stage 4). `null` when `SECRETS_KEY` is not configured — {@link setTotpSecret} then
+   *   refuses (new enrollment always needs a box to seal into; there is no plaintext fallback for a
+   *   *new* secret, only for one already stored before this option existed — see {@link reseal}).
+   */
+  constructor(db, box = null) {
+    this.box = box;
     const C = AdminStore.COLUMNS;
     this.stmt = {
       insert: db.prepare(`INSERT INTO admins (id, email, name, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`),
@@ -33,6 +42,42 @@ export class AdminStore {
   /** @param {string} email */
   static normalizeEmail(email) {
     return email.trim().toLowerCase();
+  }
+
+  /**
+   * Stage 4 startup migration: re-seal any `totp_secret` still stored in plaintext from before this
+   * option existed. Idempotent and safe to call on every start — a database with nothing left to
+   * reseal (the common case, including every fresh install) is a single cheap read and a no-op.
+   *
+   * Fails fast with `ConfigError` (refuses to start, exactly like a normal config validation
+   * failure) when plaintext rows exist and `box` is `null` — this is the "existing production data,
+   * key missing" case: the service must not silently keep serving those secrets in plaintext, and
+   * must not silently generate a new secret or lose the existing one, so the only safe move is to
+   * stop and say why. Runs in one transaction: either every plaintext row this call found is sealed,
+   * or (a crash mid-way) none of them are — never a partially-migrated table, and a failed attempt
+   * is retried in full, from scratch, on the next start.
+   * @param {Database} db
+   * @param {import('@atc-web/service-core/secrets').SecretBox|null} box
+   * @returns {number} rows resealed
+   */
+  static reseal(db, box) {
+    const rows = /** @type {{ id: string, totp_secret: string }[]} */ (
+      db.prepare(`SELECT id, totp_secret FROM admins WHERE totp_secret IS NOT NULL`).all()
+    );
+    const legacy = rows.filter((r) => !SecretBox.isSealed(r.totp_secret));
+    if (legacy.length === 0) return 0;
+    if (!box) {
+      throw new ConfigError(
+        `${legacy.length} existing TOTP secret(s) are stored in plaintext and SECRETS_KEY is not set. ` +
+        'Set SECRETS_KEY (openssl rand -hex 32) and restart to seal them; the service will not start ' +
+        'with unsealed secrets left in place unaddressed.',
+      );
+    }
+    const update = db.prepare(`UPDATE admins SET totp_secret = ? WHERE id = ?`);
+    db.transaction(() => {
+      for (const row of legacy) update.run(box.seal(row.totp_secret), row.id);
+    });
+    return legacy.length;
   }
 
   /**
@@ -86,9 +131,15 @@ export class AdminStore {
     this.stmt.setName.run(name.trim(), now, id);
   }
 
-  /** Start enrolment: store the secret, not yet enabled. @param {string} id @param {string} secret @param {number} [now] */
+  /**
+   * Start enrolment: seal and store the secret, not yet enabled.
+   * @param {string} id @param {string} secret @param {number} [now]
+   */
   setTotpSecret(id, secret, now = Date.now()) {
-    this.stmt.setTotpSecret.run(secret, now, id);
+    // Defensive: the domain layer (ConsoleAuth.startTotp) checks this first and throws a proper
+    // ConsoleError before ever reaching here — this is a bug-catcher, not an expected user-facing path.
+    if (!this.box) throw new Error('AdminStore.setTotpSecret requires a SecretBox (SECRETS_KEY)');
+    this.stmt.setTotpSecret.run(this.box.seal(secret), now, id);
   }
 
   /** @param {string} id @param {number} [now] */

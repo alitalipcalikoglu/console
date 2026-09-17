@@ -1,12 +1,14 @@
+import { SecretBox } from '@atc-web/service-core/secrets';
 import { Config } from '../src/config.js';
 import { Database } from '../src/db.js';
 import { ServiceRegistry } from '../src/services/registry.js';
 
 export const SECRET = 'k'.repeat(40);
+export const SECRETS_KEY = 'ab'.repeat(32);
 
 /** @param {Record<string, string>} [overrides] */
 export function testConfig(overrides = {}) {
-  return Config.fromEnv({ LOG_LEVEL: 'silent', DB_PATH: ':memory:', COOKIE_SECURE: 'false', SCRYPT_LOG_N: '14', ...overrides });
+  return Config.fromEnv({ LOG_LEVEL: 'silent', DB_PATH: ':memory:', COOKIE_SECURE: 'false', SCRYPT_LOG_N: '14', SECRETS_KEY, ...overrides });
 }
 
 export function testDb() {
@@ -61,13 +63,15 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   const { SessionStore } = await import('../src/store/session-store.js');
   const config = testConfig({ ...(publicDir ? { PUBLIC_DIR: publicDir } : {}), ...env });
   const db = testDb();
-  const admins = new AdminStore(db);
+  const box = config.secretsKey ? new SecretBox(config.secretsKey) : null;
+  AdminStore.reseal(db, box);
+  const admins = new AdminStore(db, box);
   const sessions = new SessionStore(db);
   const audit = new AuditStore(db);
   const hasher = new PasswordHasher({ logN: 14 });
   const clock = { now: Date.now() };
   const auth = new ConsoleAuth({
-    admins, sessions, audit, hasher, log: silentLog,
+    admins, sessions, audit, hasher, box, log: silentLog,
     options: { sessionTtlMs: config.sessionTtlMin * 60_000, sessionIdleMs: config.sessionIdleMin * 60_000, loginMaxFailures: config.loginMaxFailures, lockoutMs: config.loginLockoutMin * 60_000, totpIssuer: 'test console' },
     now: () => clock.now,
   });
@@ -77,7 +81,7 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   const app = await api.build();
   api.registerUpload(app);
   await app.ready();
-  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, clock };
+  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, clock, box };
 }
 
 export const ADMIN_PASSWORD = 'a very long console password';

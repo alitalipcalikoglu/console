@@ -22,6 +22,7 @@ export class Config {
     this.loginLockoutMin = v.loginLockoutMin;
     this.scryptLogN = v.scryptLogN;
     this.totpIssuer = v.totpIssuer;
+    this.secretsKey = v.secretsKey;
     this.auditRetentionDays = v.auditRetentionDays;
     this.serviceTimeoutMs = v.serviceTimeoutMs;
     this.rateLimitMax = v.rateLimitMax;
@@ -39,6 +40,8 @@ export class Config {
     if (Boolean(certPath) !== Boolean(keyPath)) throw new ConfigError('TLS_CERT_PATH and TLS_KEY_PATH must be set together');
     const sessionTtlMin = r.integer('CONSOLE_SESSION_TTL_MIN', 720, { min: 5, max: 43_200 });
     const sessionIdleMin = r.integer('CONSOLE_SESSION_IDLE_MIN', 60, { min: 1, max: sessionTtlMin });
+    const secretsKeyHex = r.optional('SECRETS_KEY');
+    if (secretsKeyHex && !/^[0-9a-fA-F]{64}$/.test(secretsKeyHex)) throw new ConfigError('SECRETS_KEY must be 64 hex characters (32 bytes); generate with: openssl rand -hex 32');
     return new Config({
       port: r.integer('PORT', 3004, { min: 1, max: 65535 }),
       host: r.optional('HOST') || '0.0.0.0',
@@ -56,6 +59,7 @@ export class Config {
       loginLockoutMin: r.integer('CONSOLE_LOGIN_LOCKOUT_MIN', 15, { min: 1 }),
       scryptLogN: r.integer('SCRYPT_LOG_N', 15, { min: 14, max: 20 }),
       totpIssuer: r.optional('TOTP_ISSUER') || 'atc console',
+      secretsKey: secretsKeyHex ? Buffer.from(secretsKeyHex, 'hex') : null,
       auditRetentionDays: r.integer('AUDIT_RETENTION_DAYS', 365, { min: 30 }),
       serviceTimeoutMs: r.integer('SERVICE_TIMEOUT_MS', 10_000, { min: 500, max: 120_000 }),
       rateLimitMax: r.integer('RATE_LIMIT_MAX', 30, { min: 1 }),

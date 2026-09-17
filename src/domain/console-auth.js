@@ -1,3 +1,4 @@
+import { SecretBox } from '@atc-web/service-core/secrets';
 import { Totp } from '../crypto/totp.js';
 import { AdminStore } from '../store/admin-store.js';
 import { ConsoleError } from './errors.js';
@@ -25,18 +26,37 @@ export class ConsoleAuth {
    * @param {SessionStore} deps.sessions
    * @param {AuditStore} deps.audit
    * @param {PasswordHasher} deps.hasher
+   * @param {import('@atc-web/service-core/secrets').SecretBox|null} deps.box
+   *   Opens a sealed `totp_secret` for verification. `null` when `SECRETS_KEY` is not configured —
+   *   verification then works only for admins whose secret is still legacy plaintext (not yet
+   *   re-sealed); a sealed admin's TOTP step throws `TOTP_UNAVAILABLE` instead of silently failing
+   *   as a wrong code. Enrollment (`startTotp`) needs no box here — `AdminStore.setTotpSecret`
+   *   seals on write and enforces this itself.
    * @param {Logger} deps.log
    * @param {{ sessionTtlMs: number, sessionIdleMs: number, loginMaxFailures: number, lockoutMs: number, totpIssuer: string }} deps.options
    * @param {() => number} [deps.now]
    */
-  constructor({ admins, sessions, audit, hasher, log, options, now = Date.now }) {
+  constructor({ admins, sessions, audit, hasher, box, log, options, now = Date.now }) {
     this.admins = admins;
     this.sessions = sessions;
     this.audit = audit;
     this.hasher = hasher;
+    this.box = box;
     this.log = log;
     this.options = options;
     this.now = now;
+  }
+
+  /**
+   * Plaintext TOTP secret for verification — transparent whether the stored value is Stage-4-sealed
+   * or (not yet migrated) legacy plaintext. @param {AdminRow} admin @returns {string|null}
+   */
+  #totpSecret(admin) {
+    const raw = admin.totp_secret;
+    if (raw === null) return null;
+    if (!SecretBox.isSealed(raw)) return raw;
+    if (!this.box) throw new ConsoleError('TOTP_UNAVAILABLE', 'SECRETS_KEY is required to verify this account\'s two-factor code, but is not configured');
+    return this.box.open(raw);
   }
 
   /**
@@ -86,7 +106,7 @@ export class ConsoleAuth {
     const now = this.now();
     const admin = this.admins.byId(session.admin_id);
     if (!admin || !admin.totp_secret || session.totp_pending !== 1) throw new ConsoleError('INVALID_TOTP', 'no second factor pending');
-    const step = Totp.verify(admin.totp_secret, code, now);
+    const step = Totp.verify(/** @type {string} */ (this.#totpSecret(admin)), code, now);
     if (step === null || !this.sessions.claimTotpStep(admin.id, step)) {
       const r = this.admins.recordLoginFailure(admin.id, { maxFailures: this.options.loginMaxFailures, lockoutMs: this.options.lockoutMs, now });
       this.audit.record({ adminId: admin.id, adminEmail: admin.email, action: 'login.failed', ip: ctx.ip, meta: { reason: 'bad_totp', failures: r.failed_logins } }, now);
@@ -165,6 +185,7 @@ export class ConsoleAuth {
    */
   startTotp(admin) {
     if (admin.totp_enabled_at !== null) throw new ConsoleError('CONFLICT', 'two-factor authentication is already enabled');
+    if (!this.box) throw new ConsoleError('TOTP_UNAVAILABLE', 'SECRETS_KEY is required to enrol two-factor authentication, but is not configured');
     const secret = Totp.generateSecret();
     this.admins.setTotpSecret(admin.id, secret, this.now());
     return { secret, uri: Totp.uri({ secret, account: admin.email, issuer: this.options.totpIssuer }) };
@@ -178,7 +199,7 @@ export class ConsoleAuth {
   confirmTotp(admin, code, ctx) {
     const fresh = /** @type {AdminRow} */ (this.admins.byId(admin.id));
     if (!fresh.totp_secret || fresh.totp_enabled_at !== null) throw new ConsoleError('CONFLICT', 'no enrolment in progress');
-    const step = Totp.verify(fresh.totp_secret, code, this.now());
+    const step = Totp.verify(/** @type {string} */ (this.#totpSecret(fresh)), code, this.now());
     if (step === null || !this.sessions.claimTotpStep(admin.id, step)) throw new ConsoleError('INVALID_TOTP', 'code is incorrect');
     this.admins.enableTotp(admin.id, this.now());
     this.audit.record({ adminId: admin.id, adminEmail: admin.email, action: 'totp.enabled', ip: ctx.ip }, this.now());
@@ -193,7 +214,7 @@ export class ConsoleAuth {
   async disableTotp(admin, input, ctx) {
     if (!(await this.hasher.verify(input.password, admin.password_hash))) throw new ConsoleError('INVALID_CREDENTIALS', 'password is incorrect');
     if (!admin.totp_secret || admin.totp_enabled_at === null) throw new ConsoleError('CONFLICT', 'two-factor authentication is not enabled');
-    const step = Totp.verify(admin.totp_secret, input.code, this.now());
+    const step = Totp.verify(/** @type {string} */ (this.#totpSecret(admin)), input.code, this.now());
     if (step === null) throw new ConsoleError('INVALID_TOTP', 'code is incorrect');
     this.admins.disableTotp(admin.id, this.now());
     this.audit.record({ adminId: admin.id, adminEmail: admin.email, action: 'totp.disabled', ip: ctx.ip }, this.now());

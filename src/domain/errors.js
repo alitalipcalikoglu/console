@@ -6,6 +6,7 @@ export class ConsoleError extends Error {
     UNAUTHENTICATED: 401,
     TOTP_REQUIRED: 401,
     INVALID_TOTP: 401,
+    TOTP_UNAVAILABLE: 503,
     ACCOUNT_LOCKED: 423,
     ACCOUNT_DISABLED: 403,
     FORBIDDEN: 403,

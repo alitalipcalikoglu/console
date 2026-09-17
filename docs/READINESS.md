@@ -18,9 +18,12 @@ used (when present, with a write-capable key) as the destination for the console
 
 ## Persistence
 
-SQLite (`DB_PATH`, default `./data/console.db`): `admins`, `sessions`, `totp_used` (replay guard),
-`audit` (the console's own append-only log of admin actions). Same migration mechanism as every
-other service (`src/db.js`: `PRAGMA user_version`, one transaction per migration, WAL). Also writes
+SQLite (`DB_PATH`, default `./data/console.db`): `admins` (`totp_secret` sealed at rest, Stage 4 —
+see "TOTP secret storage" in README.md), `sessions`, `totp_used` (replay guard), `audit` (the
+console's own append-only log of admin actions). Same migration mechanism as every other service
+(`src/db.js`: `PRAGMA user_version`, one transaction per migration, WAL) — the TOTP-sealing migration
+runs at application startup rather than as a numbered schema migration, since it changes a column's
+content encoding, not its schema (`AdminStore.reseal`, idempotent, see README.md). Also writes
 `services.json` in place when an admin changes a service's polling settings through the UI
 (atomic: temp file + rename, `ServiceRegistry.save`).
 
@@ -100,12 +103,14 @@ sense to trust here, so there is no `TRUST_PROXY`-style gate on it.
 
 Cookie session (`HttpOnly`, `SameSite=Strict`, `Secure` when `COOKIE_SECURE`), CSRF via a required
 `X-Console-Request` header on every mutating call, TOTP (RFC 6238, ±1 step, replay-guarded via
-`totp_used`). Two roles only, `admin`/`viewer`: viewers read, admins mutate (`requireSession` vs
-`requireAdmin` per route) — no finer-grained, per-service permission model. Dummy-hash login timing
-defence for unknown emails, same scrypt cost as real accounts (mirrors the fix made to `auth` in
-Stage 0, but console's own copy of this logic was already correct — see `src/domain/console-auth.js`).
-Every secret naming a downstream service's API key (`apiKeyEnv` in `services.json`) is env-only, no
-rotation support beyond changing the value and restarting.
+`totp_used`; secret sealed at rest under `SECRETS_KEY`, Stage 4 — README.md's "TOTP secret storage").
+Two roles only, `admin`/`viewer`: viewers read, admins mutate (`requireSession` vs `requireAdmin` per
+route) — no finer-grained, per-service permission model. Dummy-hash login timing defence for unknown
+emails, same scrypt cost as real accounts (mirrors the fix made to `auth` in Stage 0, but console's
+own copy of this logic was already correct — see `src/domain/console-auth.js`). Every secret naming
+a downstream service's API key (`apiKeyEnv` in `services.json`) is env-only, no rotation support
+beyond changing the value and restarting; `SECRETS_KEY` is the same story (see "Rotation" in
+README.md — re-enrol, not re-key).
 
 ## Scaling model
 
@@ -131,3 +136,9 @@ deployment model this service is built for.
   own log are lost (not written anywhere durable before being sent — see the outbox discussion in
   `stack/docs/ARCHITECTURE_AUDIT.md` §4.4, planned for a later stage, not this one).
 - Two instances on one database file: unverified; avoid.
+- `SECRETS_KEY` missing while a sealed `totp_secret` exists: that one admin's second factor throws
+  `TOTP_UNAVAILABLE` (503) instead of a wrong-code error — a config problem, not a client error, and
+  distinguishable from a bad code by the response code and body. Every other admin, and every
+  non-TOTP operation, is unaffected.
+- `SECRETS_KEY` missing at startup while a *plaintext* (pre-Stage-4) `totp_secret` still exists:
+  refuses to start (`ConfigError`), not a runtime failure mode — see README.md.
