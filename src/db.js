@@ -53,5 +53,16 @@ export class Database extends CoreDatabase {
     CREATE INDEX audit_at ON audit (at);
     CREATE INDEX audit_admin ON audit (admin_id, at DESC);
     `,
+    `
+    -- Stage 4.1: a one-way ratchet, set once AdminStore.reseal() has confirmed every totp_secret is
+    -- sealed under the current key (including a database that never had any TOTP secret at all —
+    -- there being nothing to reseal counts as "fully sealed" too). Never unset. Once this row
+    -- exists, a plaintext totp_secret found on any later read is treated as corrupt/unexpected
+    -- rather than tolerated as "not yet migrated" — see ConsoleAuth's strictSealing.
+    CREATE TABLE totp_seal_state (
+      id               INTEGER PRIMARY KEY CHECK (id = 1),
+      fully_sealed_at  INTEGER NOT NULL
+    );
+    `,
   ];
 }

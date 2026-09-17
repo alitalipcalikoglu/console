@@ -7,6 +7,7 @@ export class ConsoleError extends Error {
     TOTP_REQUIRED: 401,
     INVALID_TOTP: 401,
     TOTP_UNAVAILABLE: 503,
+    TOTP_SECRET_CORRUPT: 500,
     ACCOUNT_LOCKED: 423,
     ACCOUNT_DISABLED: 403,
     FORBIDDEN: 403,

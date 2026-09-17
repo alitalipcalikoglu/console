@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { SecretBox } from '@atc-web/service-core/secrets';
 import { Config, ConfigError } from '../src/config.js';
 import { Totp } from '../src/crypto/totp.js';
+import { TotpKeyring } from '../src/crypto/totp-keyring.js';
 import { ServiceRegistry } from '../src/services/registry.js';
 import { AdminStore } from '../src/store/admin-store.js';
 import { AuditStore } from '../src/store/audit-store.js';
@@ -40,8 +41,8 @@ test('Totp generates RFC 6238 codes, tolerates one step of drift, rejects garbag
 
 test('AdminStore: create, lookup, lockout, TOTP enrolment flags, admin count', () => {
   const db = testDb();
-  const box = new SecretBox(randomBytes(32));
-  const admins = new AdminStore(db, box);
+  const keyring = new TotpKeyring({ current: randomBytes(32) });
+  const admins = new AdminStore(db, keyring);
   const a = admins.create({ email: ' Ali@Example.com ', name: ' Ali ', passwordHash: 'h', role: 'admin' }, 1000);
   assert.equal(a.email, 'ali@example.com');
   assert.equal(a.name, 'Ali');
@@ -66,9 +67,9 @@ test('AdminStore: create, lookup, lockout, TOTP enrolment flags, admin count', (
   admins.setTotpSecret(a.id, 'SECRET');
   const stored = admins.byId(a.id)?.totp_secret;
   assert.ok(stored && SecretBox.isSealed(stored), 'stored sealed, not plaintext');
-  assert.equal(box.open(/** @type {string} */ (stored)), 'SECRET');
+  assert.equal(keyring.open(/** @type {string} */ (stored)), 'SECRET');
   assert.equal(admins.byId(a.id)?.totp_enabled_at, null, 'enrolling, not enabled');
-  assert.throws(() => new AdminStore(db, null).setTotpSecret(a.id, 'X'), /SecretBox/, 'without a box, enrolment refuses rather than storing plaintext');
+  assert.throws(() => new AdminStore(db, null).setTotpSecret(a.id, 'X'), /TotpKeyring/, 'without a keyring, enrolment refuses rather than storing plaintext');
   assert.equal(admins.enableTotp(a.id, 30), true);
   assert.equal(admins.byId(a.id)?.totp_enabled_at, 30);
   admins.disableTotp(a.id);

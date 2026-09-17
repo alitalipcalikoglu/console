@@ -5,6 +5,7 @@ import { SecretBox } from '@atc-web/service-core/secrets';
 /** @typedef {import('../db.js').Database} Database */
 /** @typedef {import('../types.js').AdminRow} AdminRow */
 /** @typedef {import('../types.js').Role} Role */
+/** @typedef {import('../crypto/totp-keyring.js').TotpKeyring} TotpKeyring */
 
 /** Console administrator accounts. */
 export class AdminStore {
@@ -12,13 +13,13 @@ export class AdminStore {
 
   /**
    * @param {Database} db
-   * @param {import('@atc-web/service-core/secrets').SecretBox|null} [box] Seals `totp_secret` on
-   *   write (Stage 4). `null` when `SECRETS_KEY` is not configured — {@link setTotpSecret} then
-   *   refuses (new enrollment always needs a box to seal into; there is no plaintext fallback for a
-   *   *new* secret, only for one already stored before this option existed — see {@link reseal}).
+   * @param {TotpKeyring|null} [keyring] Seals `totp_secret` on write (Stage 4/4.1). `null` when
+   *   `SECRETS_KEY` is not configured — {@link setTotpSecret} then refuses (new enrollment always
+   *   needs a key to seal into; there is no plaintext fallback for a *new* secret, only for one
+   *   already stored before this option existed — see {@link reseal}).
    */
-  constructor(db, box = null) {
-    this.box = box;
+  constructor(db, keyring = null) {
+    this.keyring = keyring;
     const C = AdminStore.COLUMNS;
     this.stmt = {
       insert: db.prepare(`INSERT INTO admins (id, email, name, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`),
@@ -45,39 +46,73 @@ export class AdminStore {
   }
 
   /**
-   * Stage 4 startup migration: re-seal any `totp_secret` still stored in plaintext from before this
-   * option existed. Idempotent and safe to call on every start — a database with nothing left to
-   * reseal (the common case, including every fresh install) is a single cheap read and a no-op.
+   * Startup migration/rotation pass, safe and idempotent to call on every start. Three things a row
+   * can need:
+   * - **plaintext → current key** (Stage 4, upgrading from before sealing existed at all), or
+   * - **sealed under a *different* key (`v1.` legacy-no-id, or `v2.` under the previous key) →
+   *   current key** (Stage 4.1, completing or continuing a `SECRETS_KEY` rotation) —
    *
-   * Fails fast with `ConfigError` (refuses to start, exactly like a normal config validation
-   * failure) when plaintext rows exist and `box` is `null` — this is the "existing production data,
-   * key missing" case: the service must not silently keep serving those secrets in plaintext, and
-   * must not silently generate a new secret or lose the existing one, so the only safe move is to
-   * stop and say why. Runs in one transaction: either every plaintext row this call found is sealed,
-   * or (a crash mid-way) none of them are — never a partially-migrated table, and a failed attempt
-   * is retried in full, from scratch, on the next start.
+   * both go through the same "decrypt with whatever key can, re-seal with the current key" path.
+   * A row already sealed under the current key needs nothing and is left untouched.
+   *
+   * Runs the actual writes in one transaction: every eligible row is resealed, or (a decrypt
+   * failure partway, or a crash) none of them are — a failed attempt is retried in full, from
+   * scratch, on the next start. Once nothing is left needing resealing — including a database that
+   * never had a TOTP secret at all — {@link totp_seal_state} is marked (idempotently; never unset),
+   * which is what makes a plaintext row found *after* this point a corruption signal rather than a
+   * tolerated migration state — see {@link hasFullySealed} and `ConsoleAuth`'s `strictSealing`.
+   *
+   * Fails fast with `ConfigError` (refuses to start) when a row needs resealing but `keyring` is
+   * `null`, or a sealed row names a key that is neither the configured current nor previous key —
+   * the service must not silently keep serving an unsealed/unrotatable secret, generate a new one,
+   * or drop the old one; the only safe move is to stop and say exactly which rows and why.
    * @param {Database} db
-   * @param {import('@atc-web/service-core/secrets').SecretBox|null} box
+   * @param {TotpKeyring|null} keyring
    * @returns {number} rows resealed
    */
-  static reseal(db, box) {
+  static reseal(db, keyring) {
     const rows = /** @type {{ id: string, totp_secret: string }[]} */ (
       db.prepare(`SELECT id, totp_secret FROM admins WHERE totp_secret IS NOT NULL`).all()
     );
-    const legacy = rows.filter((r) => !SecretBox.isSealed(r.totp_secret));
-    if (legacy.length === 0) return 0;
-    if (!box) {
-      throw new ConfigError(
-        `${legacy.length} existing TOTP secret(s) are stored in plaintext and SECRETS_KEY is not set. ` +
-        'Set SECRETS_KEY (openssl rand -hex 32) and restart to seal them; the service will not start ' +
-        'with unsealed secrets left in place unaddressed.',
-      );
+    const needsReseal = rows.filter((r) => !(keyring && keyring.isCurrent(r.totp_secret)));
+    if (needsReseal.length > 0) {
+      if (!keyring) {
+        throw new ConfigError(
+          `${needsReseal.length} existing TOTP secret(s) need SECRETS_KEY to seal (or reseal to the current key) — ` +
+          'set SECRETS_KEY (openssl rand -hex 32) and restart; the service will not start leaving them as they are.',
+        );
+      }
+      /** @type {{ id: string, sealed: string }[]} */
+      const resealedRows = [];
+      /** @type {string[]} */
+      const failed = [];
+      for (const row of needsReseal) {
+        try {
+          const plaintext = SecretBox.isSealed(row.totp_secret) ? keyring.open(row.totp_secret) : row.totp_secret;
+          resealedRows.push({ id: row.id, sealed: keyring.seal(plaintext) });
+        } catch {
+          failed.push(row.id);
+        }
+      }
+      if (failed.length > 0) {
+        throw new ConfigError(
+          `cannot reseal ${failed.length} TOTP secret(s) to the current key — they are sealed under a key that is ` +
+          'neither SECRETS_KEY nor SECRETS_PREVIOUS_KEY. Set SECRETS_PREVIOUS_KEY to whichever key last sealed them, ' +
+          'restart to complete the reseal, then it can be removed.',
+        );
+      }
+      const update = db.prepare(`UPDATE admins SET totp_secret = ? WHERE id = ?`);
+      db.transaction(() => {
+        for (const { id, sealed } of resealedRows) update.run(sealed, id);
+      });
     }
-    const update = db.prepare(`UPDATE admins SET totp_secret = ? WHERE id = ?`);
-    db.transaction(() => {
-      for (const row of legacy) update.run(box.seal(row.totp_secret), row.id);
-    });
-    return legacy.length;
+    db.prepare(`INSERT OR IGNORE INTO totp_seal_state (id, fully_sealed_at) VALUES (1, ?)`).run(Date.now());
+    return needsReseal.length;
+  }
+
+  /** Whether {@link reseal} has ever confirmed every `totp_secret` sealed under the current key. @param {Database} db */
+  static hasFullySealed(db) {
+    return db.prepare(`SELECT 1 FROM totp_seal_state WHERE id = 1`).get() !== undefined;
   }
 
   /**
@@ -138,8 +173,8 @@ export class AdminStore {
   setTotpSecret(id, secret, now = Date.now()) {
     // Defensive: the domain layer (ConsoleAuth.startTotp) checks this first and throws a proper
     // ConsoleError before ever reaching here — this is a bug-catcher, not an expected user-facing path.
-    if (!this.box) throw new Error('AdminStore.setTotpSecret requires a SecretBox (SECRETS_KEY)');
-    this.stmt.setTotpSecret.run(this.box.seal(secret), now, id);
+    if (!this.keyring) throw new Error('AdminStore.setTotpSecret requires a TotpKeyring (SECRETS_KEY)');
+    this.stmt.setTotpSecret.run(this.keyring.seal(secret), now, id);
   }
 
   /** @param {string} id @param {number} [now] */

@@ -10,7 +10,7 @@ Recommended for every admin: whoever holds a console session can operate every s
 2. Scan with Google Authenticator, 1Password, Authy or any RFC 6238 app.
 3. Enter the 6-digit code the app shows and press **Enable**.
 
-Nothing changes until the code is confirmed, so a half-finished enrolment cannot lock you out. `TOTP_ISSUER` (default "atc console") is the name shown in the authenticator app. The secret is sealed at rest with `SECRETS_KEY` (AES-256-GCM) the moment it's stored — enrolling without `SECRETS_KEY` set fails outright (`TOTP_UNAVAILABLE`) rather than storing it in plaintext.
+Nothing changes until the code is confirmed, so a half-finished enrolment cannot lock you out. `TOTP_ISSUER` (default "atc console") is the name shown in the authenticator app. The secret is sealed at rest with `SECRETS_KEY` (AES-256-GCM) the moment it's stored — enrolling without `SECRETS_KEY` set fails outright (`TOTP_UNAVAILABLE`) rather than storing it in plaintext. `SECRETS_KEY` can be rotated online, without any admin re-enrolling — see "Rotating SECRETS_KEY" in the main README.
 
 ## Signing in afterwards
 

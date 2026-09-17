@@ -97,30 +97,75 @@ Every operation goes through the console's own typed API (`/api/services/:id/…
 ## TOTP secret storage
 
 `totp_secret` is sealed at rest with `SecretBox` (`@atc-web/service-core/secrets`, AES-256-GCM,
-authenticated encryption — not a hand-rolled cipher), format `v1.<iv>.<ciphertext>.<tag>`. The key
-comes from `SECRETS_KEY` (env, 32 bytes hex) and is never stored in the database; a leaked database
-file alone reveals no TOTP secret. `v1.` is a format version, not a key version — rotating
-`SECRETS_KEY` does not add a new format, it orphans every secret sealed under the old key (see
-Rotation, below). `Totp.verify`'s comparison and timing (constant-time, ±1 step window) are
-unchanged — the seal/open step happens entirely outside that function, at the point the secret is
-written or read, so verification behaves exactly as it always did once it has the plaintext secret.
+authenticated encryption — not a hand-rolled cipher). The key comes from `SECRETS_KEY` (env, 32
+bytes hex) and is never stored in the database; a leaked database file alone reveals no TOTP secret.
+`Totp.verify`'s comparison and timing (constant-time, ±1 step window) are unchanged — the seal/open
+step happens entirely outside that function, at the point the secret is written or read, so
+verification behaves exactly as it always did once it has the plaintext secret.
 
-**Existing plaintext rows** (from before this option existed) are re-sealed automatically, once, on
-the first start after upgrading: `AdminStore.reseal()` runs before the server starts accepting
-requests, finds every `totp_secret` that isn't already in the sealed format, and seals it in one
-transaction — either all of them are sealed or (a crash mid-way) none are, retried in full on the
-next start either way. If any such row exists and `SECRETS_KEY` is not set, **the service refuses to
-start** with a `ConfigError` naming the count and what to do — it does not start with those secrets
-left in plaintext, and it does not generate a new secret or drop the old one to work around the
-missing key. `SECRETS_KEY` is otherwise optional: a fresh install with no admin ever enrolled needs
-it only once someone calls `POST /api/me/totp/start` (enrolment refuses with `TOTP_UNAVAILABLE` if
-the key isn't set at that point).
+Two sealed formats, both opened transparently by `TotpKeyring` (`src/crypto/totp-keyring.js`):
 
-**Rotation:** there is no support for re-keying already-sealed secrets in place — `SECRETS_KEY`
-identifies the one key every sealed row was sealed under. Changing it makes every previously sealed
-secret unrecoverable (`SecretBox.open` fails its authentication check with the wrong key); the only
-recovery is each affected admin disabling and re-enrolling TOTP under the new key. Plan a
-`SECRETS_KEY` change as "every admin re-enrols," not as an in-place rotation.
+- `v1.<iv>.<ciphertext>.<tag>` — no key id recorded (Stage 4's original format; a console with only
+  ever one `SECRETS_KEY` never sees anything else).
+- `v2.<keyId>.<iv>.<ciphertext>.<tag>` — a value's own key id, so `TotpKeyring` knows which of the
+  current or previous key it needs without guessing (Stage 4.1, written whenever a value is
+  (re)sealed from this point on — a `v1.` value gets upgraded to `v2.` the first time it's resealed).
+
+**Existing plaintext rows** (from before sealing existed at all) are re-sealed automatically, once,
+on the first start after upgrading: `AdminStore.reseal()` runs before the server starts accepting
+requests, finds every `totp_secret` not already sealed under the current key, and seals (or reseals)
+it in one transaction — either every eligible row is sealed or (a crash mid-way, or one row this
+config genuinely cannot decrypt) none are, retried in full on the next start either way. If any row
+needs sealing and `SECRETS_KEY` is not set, or a row is sealed under a key that is neither
+`SECRETS_KEY` nor `SECRETS_PREVIOUS_KEY`, **the service refuses to start** with a `ConfigError`
+naming the count and what to do — it does not start with those secrets left as they are, and it does
+not generate a new secret or drop the old one to work around a missing key. `SECRETS_KEY` is
+otherwise optional: a fresh install with no admin ever enrolled needs it only once someone calls
+`POST /api/me/totp/start` (enrolment refuses with `TOTP_UNAVAILABLE` if the key isn't set then).
+
+**Once fully sealed, plaintext is no longer tolerated.** The first time `reseal()` finds nothing left
+to seal (including immediately, on a database that never had a TOTP secret at all), it marks the
+database as fully sealed (`totp_seal_state`, a one-way marker — never unset). Before that point, a
+plaintext `totp_secret` is a normal, expected pre-migration state. After it, a plaintext
+`totp_secret` — which should be structurally impossible through this service's own write path — is
+treated as corruption: `TOTP_SECRET_CORRUPT` (500), not silently used as a valid secret. This closes
+off plaintext as a permanent "compatibility" format that a bug or a bypassed write path could quietly
+rely on forever.
+
+### Rotating `SECRETS_KEY`
+
+Unlike Stage 4, rotation **is** supported — no admin needs to disable and re-enrol TOTP.
+
+1. Generate a new key: `openssl rand -hex 32`. Call it K2; the currently configured `SECRETS_KEY` is K1.
+2. Set `SECRETS_KEY=<K2>` and `SECRETS_PREVIOUS_KEY=<K1>`, restart the console.
+3. On that start, `AdminStore.reseal()` runs automatically: every `totp_secret` sealed under K1 (or
+   still-legacy plaintext, if any) is resealed under K2, in one transaction. TOTP verification keeps
+   working throughout — a value not yet resealed still opens via `SECRETS_PREVIOUS_KEY` in the
+   meantime; nothing about this is disruptive to a signed-in admin mid-rotation.
+4. Confirm the reseal completed: `GET /api/me` or any TOTP verification exercises the code path, or
+   check the logs for the `reseal` line (`resealed: <n>`); `n` reaching `0` on a subsequent start (or
+   immediately, if there was nothing left) confirms every row is under K2.
+5. Once confirmed, remove `SECRETS_PREVIOUS_KEY` and restart. K1 is now fully retired — nothing in
+   this database needs it anymore.
+6. If you skip step 5 and leave `SECRETS_PREVIOUS_KEY` set indefinitely: harmless but pointless once
+   reseal has completed (nothing is sealed under it anymore to fall back to), and it does mean K1
+   must stay available in your secret store for no operational reason.
+
+**If you discard K1 before reseal has actually completed** (skipped step 3/4, or it failed and you
+didn't notice — check for a `ConfigError` at startup, which is exactly what should stop you here):
+every `totp_secret` still sealed under K1 becomes permanently unrecoverable, the same unrecoverable
+state a lost single key always was. There is no support for re-keying a value whose only key is gone
+— the recovery is that admin disabling (impossible without their code, so: another admin resetting
+via `sqlite3 ... SET totp_secret = NULL`) and re-enrolling.
+
+**Backups and old keys.** A backup taken *before* a rotation completes contains ciphertext sealed
+under K1 (and possibly K2, mid-rotation) — restoring it needs whichever of those keys were live at
+the time, not necessarily today's `SECRETS_KEY`. Keep a retired key (K1, etc.) alongside any backup
+snapshot taken before you removed it from live config, for exactly as long as you might restore that
+snapshot — once a key is gone from *both* live config and your backup's own records, a TOTP secret
+sealed only under it is unrecoverable from that backup, by design (that is what "removed" means for a
+symmetric key). This is not a new risk unique to rotation: it is the same fact Stage 4 already stated
+for a single key, extended to "whichever key was current when that backup's data was sealed."
 
 ## PWA
 
@@ -139,7 +184,7 @@ Class-based; dependencies are injected through constructors, `src/application.js
 | `Application` | `src/application.js` | Wiring, startup, graceful shutdown |
 | `Config` | `src/config.js` | Validated environment |
 | `Database` | `src/db.js` | SQLite connection, migrations, transactions |
-| `PasswordHasher`, `OpaqueToken`, `Totp` | `src/crypto/` | scrypt, session tokens, RFC 6238 |
+| `PasswordHasher`, `OpaqueToken`, `Totp`, `TotpKeyring` | `src/crypto/` | scrypt, session tokens, RFC 6238, current/previous key rotation over `SecretBox` |
 | `AdminStore`, `SessionStore`, `AuditStore` | `src/store/` | Persistence |
 | `ConsoleAuth`, `AdminService`, `ConsoleError` | `src/domain/` | Sign-in, 2FA, sessions; admin management; error codes |
 | `ServiceRegistry`, `ServiceClients`, `*Client`, `PrometheusText` | `src/services/` | services.json, typed clients per service, metrics parsing |

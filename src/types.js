@@ -19,6 +19,7 @@
  * @property {number} scryptLogN
  * @property {string} totpIssuer
  * @property {Buffer|null} secretsKey      Seals TOTP secrets at rest; null = TOTP enrollment unavailable, existing sealed secrets still verify.
+ * @property {Buffer|null} secretsPreviousKey  For rotation: decrypts (never encrypts with) the key being retired.
  * @property {number} auditRetentionDays
  * @property {number} serviceTimeoutMs
  * @property {number} rateLimitMax         Login attempts per IP per minute.

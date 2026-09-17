@@ -1,5 +1,5 @@
-import { SecretBox } from '@atc-web/service-core/secrets';
 import { Config } from '../src/config.js';
+import { TotpKeyring } from '../src/crypto/totp-keyring.js';
 import { Database } from '../src/db.js';
 import { ServiceRegistry } from '../src/services/registry.js';
 
@@ -63,15 +63,15 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   const { SessionStore } = await import('../src/store/session-store.js');
   const config = testConfig({ ...(publicDir ? { PUBLIC_DIR: publicDir } : {}), ...env });
   const db = testDb();
-  const box = config.secretsKey ? new SecretBox(config.secretsKey) : null;
-  AdminStore.reseal(db, box);
-  const admins = new AdminStore(db, box);
+  const keyring = config.secretsKey ? new TotpKeyring({ current: config.secretsKey, previous: config.secretsPreviousKey }) : null;
+  AdminStore.reseal(db, keyring);
+  const admins = new AdminStore(db, keyring);
   const sessions = new SessionStore(db);
   const audit = new AuditStore(db);
   const hasher = new PasswordHasher({ logN: 14 });
   const clock = { now: Date.now() };
   const auth = new ConsoleAuth({
-    admins, sessions, audit, hasher, box, log: silentLog,
+    admins, sessions, audit, hasher, keyring, strictSealing: AdminStore.hasFullySealed(db), log: silentLog,
     options: { sessionTtlMs: config.sessionTtlMin * 60_000, sessionIdleMs: config.sessionIdleMin * 60_000, loginMaxFailures: config.loginMaxFailures, lockoutMs: config.loginLockoutMin * 60_000, totpIssuer: 'test console' },
     now: () => clock.now,
   });
@@ -81,7 +81,7 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   const app = await api.build();
   api.registerUpload(app);
   await app.ready();
-  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, clock, box };
+  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, clock, keyring };
 }
 
 export const ADMIN_PASSWORD = 'a very long console password';

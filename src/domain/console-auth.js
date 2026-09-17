@@ -3,6 +3,8 @@ import { Totp } from '../crypto/totp.js';
 import { AdminStore } from '../store/admin-store.js';
 import { ConsoleError } from './errors.js';
 
+/** @typedef {import('../crypto/totp-keyring.js').TotpKeyring} TotpKeyring */
+
 /** @typedef {import('../types.js').AdminRow} AdminRow */
 /** @typedef {import('../types.js').SessionRow} SessionRow */
 /** @typedef {import('../store/session-store.js').SessionStore} SessionStore */
@@ -26,37 +28,46 @@ export class ConsoleAuth {
    * @param {SessionStore} deps.sessions
    * @param {AuditStore} deps.audit
    * @param {PasswordHasher} deps.hasher
-   * @param {import('@atc-web/service-core/secrets').SecretBox|null} deps.box
-   *   Opens a sealed `totp_secret` for verification. `null` when `SECRETS_KEY` is not configured —
-   *   verification then works only for admins whose secret is still legacy plaintext (not yet
-   *   re-sealed); a sealed admin's TOTP step throws `TOTP_UNAVAILABLE` instead of silently failing
-   *   as a wrong code. Enrollment (`startTotp`) needs no box here — `AdminStore.setTotpSecret`
-   *   seals on write and enforces this itself.
+   * @param {TotpKeyring|null} deps.keyring
+   *   Opens a sealed `totp_secret` for verification (current key, or previous during a rotation).
+   *   `null` when `SECRETS_KEY` is not configured — verification then works only for admins whose
+   *   secret is still legacy plaintext (not yet sealed); a sealed admin's TOTP step throws
+   *   `TOTP_UNAVAILABLE` instead of silently failing as a wrong code. Enrollment (`startTotp`) needs
+   *   no keyring here — `AdminStore.setTotpSecret` seals on write and enforces this itself.
+   * @param {boolean} [deps.strictSealing] Set once `AdminStore.reseal` has ever confirmed every
+   *   `totp_secret` is sealed under the current key (Stage 4.1 — see `AdminStore.hasFullySealed`).
+   *   Once true, a plaintext `totp_secret` found on a later read is corruption, not a tolerated
+   *   pre-migration state — `#totpSecret` then throws `TOTP_SECRET_CORRUPT` instead of using it.
    * @param {Logger} deps.log
    * @param {{ sessionTtlMs: number, sessionIdleMs: number, loginMaxFailures: number, lockoutMs: number, totpIssuer: string }} deps.options
    * @param {() => number} [deps.now]
    */
-  constructor({ admins, sessions, audit, hasher, box, log, options, now = Date.now }) {
+  constructor({ admins, sessions, audit, hasher, keyring, strictSealing = false, log, options, now = Date.now }) {
     this.admins = admins;
     this.sessions = sessions;
     this.audit = audit;
     this.hasher = hasher;
-    this.box = box;
+    this.keyring = keyring;
+    this.strictSealing = strictSealing;
     this.log = log;
     this.options = options;
     this.now = now;
   }
 
   /**
-   * Plaintext TOTP secret for verification — transparent whether the stored value is Stage-4-sealed
-   * or (not yet migrated) legacy plaintext. @param {AdminRow} admin @returns {string|null}
+   * Plaintext TOTP secret for verification — transparent whether the stored value is sealed (v1
+   * legacy-no-id or v2 keyed, current or previous key) or, before this database's first successful
+   * {@link AdminStore.reseal}, still plaintext. @param {AdminRow} admin @returns {string|null}
    */
   #totpSecret(admin) {
     const raw = admin.totp_secret;
     if (raw === null) return null;
-    if (!SecretBox.isSealed(raw)) return raw;
-    if (!this.box) throw new ConsoleError('TOTP_UNAVAILABLE', 'SECRETS_KEY is required to verify this account\'s two-factor code, but is not configured');
-    return this.box.open(raw);
+    if (!SecretBox.isSealed(raw)) {
+      if (this.strictSealing) throw new ConsoleError('TOTP_SECRET_CORRUPT', 'stored TOTP secret is plaintext in a database that has already completed sealing — refusing to use it');
+      return raw;
+    }
+    if (!this.keyring) throw new ConsoleError('TOTP_UNAVAILABLE', 'SECRETS_KEY is required to verify this account\'s two-factor code, but is not configured');
+    return this.keyring.open(raw);
   }
 
   /**
@@ -185,7 +196,7 @@ export class ConsoleAuth {
    */
   startTotp(admin) {
     if (admin.totp_enabled_at !== null) throw new ConsoleError('CONFLICT', 'two-factor authentication is already enabled');
-    if (!this.box) throw new ConsoleError('TOTP_UNAVAILABLE', 'SECRETS_KEY is required to enrol two-factor authentication, but is not configured');
+    if (!this.keyring) throw new ConsoleError('TOTP_UNAVAILABLE', 'SECRETS_KEY is required to enrol two-factor authentication, but is not configured');
     const secret = Totp.generateSecret();
     this.admins.setTotpSecret(admin.id, secret, this.now());
     return { secret, uri: Totp.uri({ secret, account: admin.email, issuer: this.options.totpIssuer }) };
