@@ -44,6 +44,7 @@
       <Stat label={t('gateway.rateLimited')} value={fmt.int(m?.rejected?.rate_limited ?? 0)} tone={m?.rejected?.rate_limited ? 'warn' : ''} />
       <Stat label={t('gateway.unauthorized')} value={fmt.int(m?.rejected?.unauthorized ?? 0)} />
       <Stat label={t('gateway.noRoute')} value={fmt.int(m?.rejected?.no_route ?? 0)} />
+      <Stat label={t('gateway.policyDenied')} value={fmt.int(m?.rejected?.policy ?? 0)} tone={m?.rejected?.policy ? 'warn' : ''} sub={m?.rejected?.policy_unavailable ? t('gateway.policyUnavailable', { n: fmt.int(m.rejected.policy_unavailable) }) : undefined} subTone={m?.rejected?.policy_unavailable ? 'danger' : ''} />
       {#if m?.uptimeSec != null}<Stat label={t('overview.uptime')} value={fmt.duration(m.uptimeSec)} />{/if}
     </div>
     <div class="stack">
