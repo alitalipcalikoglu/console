@@ -1,7 +1,7 @@
 <script>
   /** Switch between several instances of the same service type (e.g. media-eu / media-us). */
   import { services } from '../services.svelte.js';
-  /** @type {{ type: 'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink'|'flags'|'scheduler'|'webhook-out', sid: string }} */
+  /** @type {{ type: 'notify'|'auth'|'media'|'gateway'|'audit'|'shortlink'|'flags'|'scheduler'|'webhook-out'|'search', sid: string }} */
   let { type, sid } = $props();
   const list = $derived(services.ofType(type));
 </script>

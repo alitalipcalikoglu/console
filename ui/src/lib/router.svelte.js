@@ -61,5 +61,5 @@ export class Router {
 
 export const router = new Router([
   '/login', '/', '/notify/:sid', '/notify/:sid/messages/:id', '/auth/:sid', '/auth/:sid/users/:id',
-  '/media/:sid', '/media/:sid/files/:id', '/gateway/:sid', '/audit/:sid', '/audit/:sid/events/:id', '/shortlink/:sid', '/shortlink/:sid/links/:id', '/flags/:sid', '/flags/:sid/flags/:id', '/scheduler/:sid', '/scheduler/:sid/jobs/:id', '/scheduler/:sid/runs/:id', '/webhook-out/:sid', '/webhook-out/:sid/subscriptions/:id', '/webhook-out/:sid/deliveries/:id', '/webhook-out/:sid/events/:id', '/audit', '/admins', '/account',
+  '/media/:sid', '/media/:sid/files/:id', '/gateway/:sid', '/audit/:sid', '/audit/:sid/events/:id', '/shortlink/:sid', '/shortlink/:sid/links/:id', '/flags/:sid', '/flags/:sid/flags/:id', '/scheduler/:sid', '/scheduler/:sid/jobs/:id', '/scheduler/:sid/runs/:id', '/webhook-out/:sid', '/webhook-out/:sid/subscriptions/:id', '/webhook-out/:sid/deliveries/:id', '/webhook-out/:sid/events/:id', '/search/:sid', '/search/:sid/indexes/:id', '/audit', '/admins', '/account',
 ]);

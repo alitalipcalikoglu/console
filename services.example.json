@@ -8,6 +8,7 @@
     { "id": "shortlink", "type": "shortlink", "label": "Shortlink", "url": "http://10.0.0.6:3006", "apiKeyEnv": "SHORTLINK_API_KEY" },
     { "id": "flags", "type": "flags", "label": "Flags", "url": "http://10.0.0.7:3007", "apiKeyEnv": "FLAGS_API_KEY" },
     { "id": "scheduler", "type": "scheduler", "label": "Scheduler", "url": "http://10.0.0.8:3008", "apiKeyEnv": "SCHEDULER_API_KEY" },
-    { "id": "webhooks", "type": "webhook-out", "label": "Webhooks", "url": "http://10.0.0.9:3009", "apiKeyEnv": "WEBHOOK_OUT_API_KEY" }
+    { "id": "webhooks", "type": "webhook-out", "label": "Webhooks", "url": "http://10.0.0.9:3009", "apiKeyEnv": "WEBHOOK_OUT_API_KEY" },
+    { "id": "search", "type": "search", "label": "Search", "url": "http://10.0.0.10:3010", "apiKeyEnv": "SEARCH_API_KEY" }
   ]
 }

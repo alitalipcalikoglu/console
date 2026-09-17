@@ -9,6 +9,7 @@ import { AuditClient } from '../services/audit-client.js';
 import { AuthClient } from '../services/auth-client.js';
 import { FlagsClient } from '../services/flags-client.js';
 import { SchedulerClient } from '../services/scheduler-client.js';
+import { SearchClient } from '../services/search-client.js';
 import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
@@ -105,6 +106,13 @@ class Schemas {
   static webhookCreate = Schemas.body(['name', 'url', 'events'], Schemas.webhookFields);
   static webhookPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: Schemas.webhookFields };
   static webhookReplay = Schemas.body(['from'], { from: { type: 'string', minLength: 20, maxLength: 40 }, to: { type: 'string', minLength: 20, maxLength: 40 } });
+  static searchName = { type: 'string', pattern: '^[a-z0-9]+([.\\-_][a-z0-9]+)*$', maxLength: 80 };
+  static searchIndexFields = { description: { type: 'string', maxLength: 500 }, weights: { type: 'object', additionalProperties: false, properties: { title: { type: 'number' }, body: { type: 'number' }, tags: { type: 'number' } } }, facets: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 64 } } };
+  static searchIndexCreate = Schemas.body(['name'], { name: Schemas.searchName, ...Schemas.searchIndexFields });
+  static searchIndexPatch = { type: 'object', additionalProperties: false, minProperties: 1, properties: Schemas.searchIndexFields };
+  static searchQuery = { type: 'object', additionalProperties: false, properties: { limit: { type: 'string', pattern: '^([1-9]|[1-9][0-9]|100)$' }, offset: { type: 'string', pattern: '^(0|[1-9][0-9]{0,4})$' } } };
+  static searchBody = Schemas.body([], { q: { type: 'string', maxLength: 500 }, filters: { type: 'object', maxProperties: 20, additionalProperties: { type: 'array', maxItems: 50, items: { type: 'string', maxLength: 200 } } }, facets: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 64 } }, limit: { type: 'integer', minimum: 1, maximum: 100 }, offset: { type: 'integer', minimum: 0, maximum: 10000 }, highlight: { type: 'boolean' }, sort: { type: 'string', enum: ['relevance', 'newest', 'oldest'] } });
+  static searchUpsert = Schemas.body(['documents'], { documents: { type: 'array', minItems: 1, maxItems: 500, items: { type: 'object', required: ['id', 'title'], additionalProperties: false, properties: { id: { type: 'string', minLength: 1, maxLength: 200 }, title: { type: 'string' }, body: { type: 'string' }, tags: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 100 } }, attrs: { type: 'object' }, url: { type: 'string', maxLength: 2048 } } } } });
   static flagsQuery = {
     type: 'object', additionalProperties: false,
     properties: {
@@ -764,6 +772,53 @@ export class ConsoleApi {
     });
     api.get('/services/:sid/webhook-out/events', { schema: { params: P, querystring: WQ } }, async (request) => { s.requireSession(request); const q = query(request); return wh(request).events({ type: q.type, limit: num(q.limit), before: q.before }); });
     api.get('/services/:sid/webhook-out/events/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return wh(request).getEvent(pid(request)); });
+
+    // ---------------------------------------------------------------- search
+    const se = (/** @type {FastifyRequest} */ r) => this.clients.get(sid(r), SearchClient);
+    api.get('/services/:sid/search/stats', { schema: { params: P } }, async (request) => { s.requireSession(request); return se(request).stats(); });
+    api.get('/services/:sid/search/indexes', { schema: { params: P } }, async (request) => { s.requireSession(request); return se(request).listIndexes(); });
+    api.post('/services/:sid/search/indexes', { schema: { params: P, body: Schemas.searchIndexCreate } }, async (request, reply) => {
+      s.requireAdmin(request);
+      const body = /** @type {any} */ (request.body);
+      const out = await se(request).createIndex(body);
+      record(request, 'search.index.create', body.name, { service: sid(request) });
+      return reply.code(201).send(out);
+    });
+    api.get('/services/:sid/search/indexes/:id', { schema: { params: PI } }, async (request) => { s.requireSession(request); return se(request).getIndex(pid(request)); });
+    api.patch('/services/:sid/search/indexes/:id', { schema: { params: PI, body: Schemas.searchIndexPatch } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await se(request).patchIndex(pid(request), /** @type {any} */ (request.body));
+      record(request, 'search.index.update', pid(request), { service: sid(request), patch: request.body });
+      return out;
+    });
+    api.delete('/services/:sid/search/indexes/:id', { schema: { params: PI } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await se(request).deleteIndex(pid(request));
+      record(request, 'search.index.delete', pid(request), { service: sid(request) });
+      return reply.code(204).send();
+    });
+    api.post('/services/:sid/search/indexes/:id/clear', { schema: { params: PI } }, async (request) => {
+      s.requireAdmin(request);
+      const out = await se(request).clearIndex(pid(request));
+      record(request, 'search.index.clear', pid(request), { service: sid(request), removed: /** @type {any} */ (out)?.removed ?? null });
+      return out;
+    });
+    api.post('/services/:sid/search/indexes/:id/search', { schema: { params: PI, body: Schemas.searchBody } }, async (request) => { s.requireSession(request); return se(request).search(pid(request), /** @type {any} */ (request.body ?? {})); });
+    api.get('/services/:sid/search/indexes/:id/documents', { schema: { params: PI, querystring: Schemas.searchQuery } }, async (request) => { s.requireSession(request); const q = query(request); return se(request).browse(pid(request), { limit: num(q.limit), offset: num(q.offset) }); });
+    api.put('/services/:sid/search/indexes/:id/documents', { schema: { params: PI, body: Schemas.searchUpsert } }, async (request) => {
+      s.requireAdmin(request);
+      const docs = /** @type {{ documents: any[] }} */ (request.body).documents;
+      const out = await se(request).upsert(pid(request), docs);
+      record(request, 'search.documents.upsert', pid(request), { service: sid(request), count: docs.length });
+      return out;
+    });
+    api.get('/services/:sid/search/indexes/:id/documents/:sub', { schema: { params: PIS } }, async (request) => { s.requireSession(request); return se(request).getDocument(pid(request), psub(request)); });
+    api.delete('/services/:sid/search/indexes/:id/documents/:sub', { schema: { params: PIS } }, async (request, reply) => {
+      s.requireAdmin(request);
+      await se(request).deleteDocument(pid(request), psub(request));
+      record(request, 'search.document.delete', psub(request), { service: sid(request), index: pid(request) });
+      return reply.code(204).send();
+    });
 
     return api;
   }

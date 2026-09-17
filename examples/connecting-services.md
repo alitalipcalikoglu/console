@@ -14,13 +14,14 @@
     { "id": "shortlink","type": "shortlink","label": "Shortlink", "url": "http://10.0.0.6:3006", "apiKeyEnv": "SHORTLINK_API_KEY" },
     { "id": "flags",   "type": "flags",   "label": "Flags",      "url": "http://10.0.0.7:3007", "apiKeyEnv": "FLAGS_API_KEY" },
     { "id": "scheduler", "type": "scheduler", "label": "Scheduler", "url": "http://10.0.0.8:3008", "apiKeyEnv": "SCHEDULER_API_KEY" },
-    { "id": "webhooks", "type": "webhook-out", "label": "Webhooks", "url": "http://10.0.0.9:3009", "apiKeyEnv": "WEBHOOK_OUT_API_KEY" }
+    { "id": "webhooks", "type": "webhook-out", "label": "Webhooks", "url": "http://10.0.0.9:3009", "apiKeyEnv": "WEBHOOK_OUT_API_KEY" },
+    { "id": "search", "type": "search", "label": "Search", "url": "http://10.0.0.10:3010", "apiKeyEnv": "SEARCH_API_KEY" }
   ]
 }
 ```
 
 - `id`: lower-case, unique; appears in URLs (`/media/media-us`) and in the audit log.
-- `type`: `notify`, `auth`, `media`, `gateway`, `audit`, `shortlink`, `flags`, `scheduler` or `webhook-out`. Decides the screens.
+- `type`: `notify`, `auth`, `media`, `gateway`, `audit`, `shortlink`, `flags`, `scheduler`, `webhook-out` or `search`. Decides the screens.
 - `url`: bare origin the console calls. Private network addresses are fine and preferred.
 - `apiKeyEnv` / `metricsTokenEnv`: **names** of environment variables in `.env`, never the secret itself. Missing or short (< 32 chars) values stop the process at start.
 - `polling` (optional): `{ "enabled": true, "intervalSec": 30 }` makes the service's page, and its card on the overview, refresh at that interval while open and visible. The interval is a floor: the console times every run, keeps the last ten, and never polls faster than 1.3× the average response time (avg 10 s → effective 13 s), restarting the timer when that changes. Runs are serialised per service; a tick during a run is coalesced into one follow-up. Changed from the UI by admins; the console rewrites the file (atomic temp-file rename) and keeps every other field untouched. Allowed interval 5–3600 s.
@@ -37,7 +38,7 @@ In each service add an entry for the console and use its secret here:
 NOTIFY_API_KEYS=auth:…,gateway:…,console:6f1c…
 ```
 
-For the audit service use a **read** role key (`AUDIT_API_KEYS=…,console:<secret>:read`): the console only reads events, verifies the chain and exports; it never writes there. The shortlink key needs `readwrite` (default role) because admins create and edit links from the console. The flags key needs `readwrite` **without** an environment scope, so the console can manage every environment. The scheduler key needs `readwrite` (default role): admins create jobs, run them on demand and cancel runs from the console. The webhook-out key needs `readwrite` too (subscriptions, tests, replays, redeliveries); your backends get their own `publish` keys there, never the console's.
+For the audit service use a **read** role key (`AUDIT_API_KEYS=…,console:<secret>:read`): the console only reads events, verifies the chain and exports; it never writes there. The shortlink key needs `readwrite` (default role) because admins create and edit links from the console. The flags key needs `readwrite` **without** an environment scope, so the console can manage every environment. The scheduler key needs `readwrite` (default role): admins create jobs, run them on demand and cancel runs from the console. The webhook-out key needs `readwrite` too (subscriptions, tests, replays, redeliveries); your backends get their own `publish` keys there, never the console's. The search key needs `readwrite` without an index scope, so the console can manage every index.
 
 Rotating the console's access to one service is then a change in two files and a reload, without touching other callers.
 

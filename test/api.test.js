@@ -19,7 +19,7 @@ const fake = createServer((req, res) => {
     const json = (/** @type {number} */ status, /** @type {unknown} */ data) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(data));
     if (p === '/health') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/ready') return res.writeHead(200).end('{"status":"ok"}');
-    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\nflags_total{state="active"} 3\nflags_total{state="archived"} 1\nflags_enabled{env="prod"} 2\nflags_evaluations_total{env="prod"} 77\nscheduler_jobs{state="enabled"} 5\nscheduler_jobs{state="disabled"} 1\nscheduler_runs{status="succeeded"} 40\nscheduler_runs{status="failed"} 2\nscheduler_runs_finished_total{status="failed"} 1\nscheduler_in_flight 0\nscheduler_next_due_seconds 120\nwebhook_subscriptions{status="active"} 4\nwebhook_subscriptions{status="disabled"} 1\nwebhook_events_total 90\nwebhook_deliveries{status="succeeded"} 80\nwebhook_deliveries{status="failed"} 3\nwebhook_backlog 2\nwebhook_oldest_queued_age_seconds 30\nwebhook_deliveries_finished_total{status="failed"} 1\n');
+    if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\nflags_total{state="active"} 3\nflags_total{state="archived"} 1\nflags_enabled{env="prod"} 2\nflags_evaluations_total{env="prod"} 77\nscheduler_jobs{state="enabled"} 5\nscheduler_jobs{state="disabled"} 1\nscheduler_runs{status="succeeded"} 40\nscheduler_runs{status="failed"} 2\nscheduler_runs_finished_total{status="failed"} 1\nscheduler_in_flight 0\nscheduler_next_due_seconds 120\nwebhook_subscriptions{status="active"} 4\nwebhook_subscriptions{status="disabled"} 1\nwebhook_events_total 90\nwebhook_deliveries{status="succeeded"} 80\nwebhook_deliveries{status="failed"} 3\nwebhook_backlog 2\nwebhook_oldest_queued_age_seconds 30\nwebhook_deliveries_finished_total{status="failed"} 1\nsearch_indexes 2\nsearch_documents_total 150\nsearch_queries_total{index="products"} 30\nsearch_db_bytes 4096\n');
     if (p === '/v1/messages' && req.method === 'GET') return json(200, { items: [{ id: 'm1', status: 'failed' }], nextCursor: null });
     if (p === '/v1/messages/m1/retry') return json(200, { id: 'm1', status: 'queued' });
     if (p === '/v1/messages' && req.method === 'POST') return json(202, { id: 'm2', status: 'queued' });
@@ -44,6 +44,18 @@ const fake = createServer((req, res) => {
     if (p === '/v1/events' && req.method === 'GET') return json(200, { items: [{ id: 'e1', seq: 42, action: 'auth.login', outcome: 'failure', source: 'auth' }], nextCursor: null });
     if (p === '/v1/events/export') return res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'content-disposition': 'attachment; filename="audit-x.ndjson"' }).end('{"seq":1}\n{"seq":2}\n');
     if (p === '/v1/events/e1') return json(200, { event: { id: 'e1', seq: 42, action: 'auth.login', meta: { k: 1 } } });
+    if (p === '/v1/stats' && String(req.headers.authorization).endsWith('q'.repeat(40))) return json(200, { indexes: 2, documents: 150, searchesSinceStart: 30, dbBytes: 4096, items: [] });
+    if (p === '/v1/indexes' && req.method === 'GET') return json(200, { items: [{ name: 'products', documents: 150 }] });
+    if (p === '/v1/indexes' && req.method === 'POST') return json(201, { index: { name: JSON.parse(body).name, documents: 0 } });
+    if (p === '/v1/indexes/products' && req.method === 'GET') return json(200, { index: { name: 'products', documents: 150, facets: ['brand'] } });
+    if (p === '/v1/indexes/products' && req.method === 'PATCH') return json(200, { index: { name: 'products', facets: ['color'] } });
+    if (p === '/v1/indexes/products' && req.method === 'DELETE') return res.writeHead(204).end();
+    if (p === '/v1/indexes/products/clear') return json(200, { removed: 150 });
+    if (p === '/v1/indexes/products/search') return json(200, { total: 1, hits: [{ id: 'p1', title: 'x', highlights: { title: '<mark>x</mark>' } }], facets: { brand: [] }, query: JSON.parse(body).q });
+    if (p === '/v1/indexes/products/documents' && req.method === 'GET') return json(200, { items: [{ id: 'p1' }], total: 1 });
+    if (p === '/v1/indexes/products/documents' && req.method === 'PUT') return json(200, { created: JSON.parse(body).documents.length, updated: 0 });
+    if (p === '/v1/indexes/products/documents/p1' && req.method === 'GET') return json(200, { document: { id: 'p1', title: 'x' } });
+    if (p === '/v1/indexes/products/documents/p1' && req.method === 'DELETE') return res.writeHead(204).end();
     if (p === '/v1/stats' && String(req.headers.authorization).endsWith('h'.repeat(40))) return json(200, { subscriptions: { active: 4, paused: 0, disabled: 1 }, events: { total: 90, last24h: 9 }, deliveries: { byStatus: {}, backlog: { queued: 2, oldestAt: null } }, worker: { running: true } });
     if (p === '/v1/subscriptions' && req.method === 'GET') return json(200, { items: [{ id: 'sub_0000000000000001', name: 'kargocu-a', status: 'active' }], nextCursor: null });
     if (p === '/v1/subscriptions' && req.method === 'POST') return json(201, { subscription: { id: 'sub_0000000000000002', name: JSON.parse(body).name, status: 'active' }, secret: 'whsec_x' });
@@ -111,7 +123,7 @@ let origin = '';
 before(async () => {
   await new Promise((r) => fake.listen(0, '127.0.0.1', () => r(undefined)));
   origin = `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}`;
-  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin, flags: origin, scheduler: origin, 'webhook-out': origin }, publicDir: pub });
+  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin, flags: origin, scheduler: origin, 'webhook-out': origin, search: origin }, publicDir: pub });
 });
 after(async () => { await t.app.close(); fake.close(); rmSync(pub, { recursive: true, force: true }); });
 
@@ -211,7 +223,9 @@ test('overview aggregates health and parsed metrics per service', async () => {
   const res = await t.app.inject({ url: '/api/services/overview', headers: { cookie } });
   assert.equal(res.statusCode, 200);
   const items = res.json().items;
-  assert.equal(items.length, 9);
+  assert.equal(items.length, 10);
+  const srch = items.find((/** @type {any} */ i) => i.id === 'search').summary;
+  assert.deepEqual([srch.indexes, srch.documents, srch.queriesByIndex, srch.dbBytes], [2, 150, { products: 30 }, 4096]);
   const whs = items.find((/** @type {any} */ i) => i.id === 'webhooks').summary;
   assert.deepEqual([whs.activeSubscriptions, whs.disabledSubscriptions, whs.deliveriesByStatus, whs.backlog, whs.failedSinceStart], [4, 1, { succeeded: 80, failed: 3 }, 2, 1]);
   assert.deepEqual(items.find((/** @type {any} */ i) => i.id === 'flags').summary.enabledByEnv, { prod: 2 });
@@ -496,4 +510,39 @@ test('webhook-out: subscriptions, secret on create, detail with deliveries, rota
   assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 8), ['webhook.subscription.delete', 'webhook.delivery.cancel', 'webhook.delivery.redeliver', 'webhook.subscription.replay', 'webhook.subscription.test', 'webhook.subscription.rotate', 'webhook.subscription.update', 'webhook.subscription.create']);
   assert.deepEqual(log.json().items[3].meta, { service: 'webhooks', from: '2026-09-17T08:00:00Z', queued: 3 });
   assert.equal((await t.app.inject({ url: '/api/services/flags/webhook-out/subscriptions', headers: { cookie } })).statusCode, 404, 'wrong service type');
+});
+
+test('search: indexes, search, browse, upsert, document, clear, delete (audited)', async () => {
+  const { cookie } = await signIn(t);
+  const viewer = await signIn(t, { email: 'viewer6@console.local', role: 'viewer' });
+  seen.length = 0;
+  let res = await t.app.inject({ url: '/api/services/search/search/indexes', headers: { cookie } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().items[0].name, 'products');
+  assert.equal(seen.at(-1)?.headers.authorization, `Bearer ${'q'.repeat(40)}`, 'search key injected');
+  assert.equal((await t.app.inject({ method: 'POST', url: '/api/services/search/search/indexes', headers: { cookie: viewer.cookie, ...CSRF }, payload: { name: 'x' } })).statusCode, 403);
+  res = await t.app.inject({ method: 'POST', url: '/api/services/search/search/indexes', headers: { cookie, ...CSRF }, payload: { name: 'articles', facets: ['author'] } });
+  assert.equal(res.statusCode, 201, res.body);
+  assert.equal((await t.app.inject({ method: 'POST', url: '/api/services/search/search/indexes', headers: { cookie, ...CSRF }, payload: { name: 'Bad' } })).statusCode, 400);
+  res = await t.app.inject({ method: 'POST', url: '/api/services/search/search/indexes/products/search', headers: { cookie: viewer.cookie, ...CSRF }, payload: { q: 'kırmızı', highlight: true, facets: ['brand'], filters: { color: ['red'] }, limit: 10 } });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.deepEqual([res.json().total, res.json().hits[0].highlights.title, res.json().query], [1, '<mark>x</mark>', 'kırmızı']);
+  assert.equal(seen.at(-1)?.url, '/v1/indexes/products/search');
+  assert.equal((await t.app.inject({ method: 'POST', url: '/api/services/search/search/indexes/products/search', headers: { cookie, ...CSRF }, payload: { q: 'x', offset: 99999 } })).statusCode, 400, 'offset bound');
+  res = await t.app.inject({ url: '/api/services/search/search/indexes/products/documents?limit=20&offset=40', headers: { cookie } });
+  assert.equal(seen.at(-1)?.url, '/v1/indexes/products/documents?limit=20&offset=40');
+  assert.equal(res.json().total, 1);
+  res = await t.app.inject({ method: 'PUT', url: '/api/services/search/search/indexes/products/documents', headers: { cookie, ...CSRF }, payload: { documents: [{ id: 'p2', title: 'y', attrs: { a: 1 } }] } });
+  assert.deepEqual(res.json(), { created: 1, updated: 0 });
+  assert.equal((await t.app.inject({ method: 'PUT', url: '/api/services/search/search/indexes/products/documents', headers: { cookie, ...CSRF }, payload: { documents: [{ id: 'p2', title: 'y', extra: 1 }] } })).statusCode, 400);
+  assert.equal((await t.app.inject({ url: '/api/services/search/search/indexes/products/documents/p1', headers: { cookie } })).json().document.id, 'p1');
+  assert.equal((await t.app.inject({ method: 'DELETE', url: '/api/services/search/search/indexes/products/documents/p1', headers: { cookie, ...CSRF } })).statusCode, 204);
+  assert.equal((await t.app.inject({ method: 'PATCH', url: '/api/services/search/search/indexes/products', headers: { cookie, ...CSRF }, payload: { facets: ['color'] } })).json().index.facets[0], 'color');
+  assert.deepEqual((await t.app.inject({ method: 'POST', url: '/api/services/search/search/indexes/products/clear', headers: { cookie, ...CSRF } })).json(), { removed: 150 });
+  assert.equal((await t.app.inject({ url: '/api/services/search/search/stats', headers: { cookie } })).json().documents, 150);
+  assert.equal((await t.app.inject({ method: 'DELETE', url: '/api/services/search/search/indexes/products', headers: { cookie, ...CSRF } })).statusCode, 204);
+  const log = await t.app.inject({ url: '/api/audit?action=search.', headers: { cookie } });
+  assert.deepEqual(log.json().items.map((/** @type {any} */ e) => e.action).slice(0, 6), ['search.index.delete', 'search.index.clear', 'search.index.update', 'search.document.delete', 'search.documents.upsert', 'search.index.create']);
+  assert.deepEqual(log.json().items[1].meta, { service: 'search', removed: 150 });
+  assert.equal((await t.app.inject({ url: '/api/services/flags/search/indexes', headers: { cookie } })).statusCode, 404, 'wrong service type');
 });
