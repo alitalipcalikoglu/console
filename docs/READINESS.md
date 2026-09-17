@@ -1,0 +1,133 @@
+# console readiness contract
+
+## Purpose
+
+The administrative control plane: a Svelte progressive web app plus a Fastify backend-for-frontend
+that authenticates admins directly (its own accounts, sessions, TOTP — not delegated to `auth`,
+which is for end users of the platform's applications), and proxies typed, role-checked operations
+to every other service through per-service client classes.
+
+## Dependencies
+
+Every service listed in `services.json`, each optional at the level of "console still runs and
+serves the UI without it" but required for that service's own pages to work: a call to an
+unreachable service answers `502 UPSTREAM_UNREACHABLE` from the console's own API, the UI shows
+that service as unreachable rather than the console failing. The audit service is additionally
+used (when present, with a write-capable key) as the destination for the console's own log
+(`src/application.js`: `AuditClient` forwarder reading `registry.ofType('audit')[0]`).
+
+## Persistence
+
+SQLite (`DB_PATH`, default `./data/console.db`): `admins`, `sessions`, `totp_used` (replay guard),
+`audit` (the console's own append-only log of admin actions). Same migration mechanism as every
+other service (`src/db.js`: `PRAGMA user_version`, one transaction per migration, WAL). Also writes
+`services.json` in place when an admin changes a service's polling settings through the UI
+(atomic: temp file + rename, `ServiceRegistry.save`).
+
+## Health endpoint
+
+`GET /health`: always `{"status":"ok"}`, no dependency checks.
+
+## Readiness endpoint
+
+`GET /ready`: `db.ping()` only — does **not** check any of the services it proxies to. `503` only
+on a database problem. No caching (the check itself is cheap).
+
+## Graceful shutdown
+
+SIGTERM/SIGINT → stop the maintenance timer → `app.close()` (Fastify drains in-flight requests,
+including any upload streaming through the console) → flush the audit-log forwarder (up to ~2 s
+plus retries) → close the database → exit. Force-exit at 30 s; PM2 `kill_timeout` 35 000 ms.
+`unhandledRejection` runs the same shutdown; `uncaughtException` exits immediately.
+
+## Resource limits
+
+Request body cap 64 KiB for ordinary API calls (`bodyLimit` in `src/http/console-api.js`); file
+uploads proxied to `media` stream through without that limit (media enforces its own).
+`max_memory_restart`: 300M.
+
+## Timeouts
+
+`SERVICE_TIMEOUT_MS` (default 10 000): every outbound call to a proxied service
+(`src/services/client.js`, `AbortSignal.timeout`). A service's own `/health`/`/ready` probe (used
+for the overview page) uses a shorter 3 s timeout, independent of `SERVICE_TIMEOUT_MS`.
+
+## Retry policy
+
+None. A failed outbound call to a service is surfaced to the admin as an error; the UI's manual
+refresh is the retry mechanism, by design (see the platform-wide "no background polling" rule).
+
+## Idempotency
+
+Session login is rate-limited per IP, not idempotency-guarded (a locked-out account behaves the
+same on repeat attempts). Every write the console performs against another service is exactly one
+HTTP call with no client-side retry, so idempotency for that operation is whatever guarantee the
+target service's endpoint itself makes — the console adds none of its own.
+
+## Backup
+
+The console's own database (admins, sessions, its log) and `services.json` (which service
+connections it knows about) need to survive a disk loss; neither is derivable from anything else.
+
+## Restore
+
+Restore the database file and `services.json` together (a stale `services.json` after a database
+restore just means the connection list is momentarily out of date, not unsafe) and restart.
+
+## Metrics
+
+None of its own — there is no `/metrics` endpoint (`src/http/console-api.js` has no such route).
+The console instead *reads* other services' `/metrics` (via `PrometheusText.parse` in
+`src/services/client.js`) to render their dashboards.
+
+## Logging
+
+Fastify's default request logging (no custom access-log line the way gateway has one); redacts
+`authorization` and `cookie`. See [OBSERVABILITY.md](../../stack/docs/OBSERVABILITY.md) for the
+target field vocabulary — `service`/`version`/`traceId` are not yet emitted here either.
+
+## Tracing
+
+Forwards its own inbound request id (`X-Request-Id`) on every outbound call to a service, since
+this stage, via `AsyncLocalStorage` (`src/services/client.js`: `requestIdContext`, set once per
+request in an `onRequest` hook in `src/http/console-api.js`) — no route handler or client method
+has to thread it through explicitly. Does **not** forward `traceparent` (out of scope for this
+stage; see OBSERVABILITY.md). The console's own inbound id is always self-generated
+(`requestIdHeader: false`) — unlike the gateway, there is no upstream proxy whose header would make
+sense to trust here, so there is no `TRUST_PROXY`-style gate on it.
+
+## Security model
+
+Cookie session (`HttpOnly`, `SameSite=Strict`, `Secure` when `COOKIE_SECURE`), CSRF via a required
+`X-Console-Request` header on every mutating call, TOTP (RFC 6238, ±1 step, replay-guarded via
+`totp_used`). Two roles only, `admin`/`viewer`: viewers read, admins mutate (`requireSession` vs
+`requireAdmin` per route) — no finer-grained, per-service permission model. Dummy-hash login timing
+defence for unknown emails, same scrypt cost as real accounts (mirrors the fix made to `auth` in
+Stage 0, but console's own copy of this logic was already correct — see `src/domain/console-auth.js`).
+Every secret naming a downstream service's API key (`apiKeyEnv` in `services.json`) is env-only, no
+rotation support beyond changing the value and restarting.
+
+## Scaling model
+
+**B — single-node stateful.** One SQLite file per process, in-memory login rate limiter, in-memory
+`AsyncLocalStorage` request context (inherently per-process, which is correct — it exists to carry
+state within one request's own execution, not across instances).
+
+## Single-node / multi-node guarantees
+
+Running two console instances against the same database file is not supported or tested: session
+touches, admin creation/role changes, and the `services.json` atomic-write path all assume a single
+writer. Nothing prevents starting a second instance, but doing so is unverified and not the
+deployment model this service is built for.
+
+## Known failure modes
+
+- Every proxied service down at once: the console itself still serves the UI and its own
+  authentication; every service page shows "unreachable".
+- Audit service down while forwarding is configured: the console's own log entries queue in the
+  forwarder's in-memory buffer (≤5000) and are dropped, oldest first, if it stays down long enough
+  — the console's *local* audit log (its own `audit` table) is unaffected either way.
+- Process killed without SIGTERM: any buffered-but-unsent audit-forwarding events for the console's
+  own log are lost (not written anywhere durable before being sent — see the outbox discussion in
+  `stack/docs/ARCHITECTURE_AUDIT.md` §4.4, planned for a later stage, not this one).
+- Two instances on one database file: unverified; avoid.

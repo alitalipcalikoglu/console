@@ -1,4 +1,16 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 /** @typedef {import('../types.js').ServiceDef} ServiceDef */
+
+/**
+ * Carries the console's own inbound request id across every outbound call to a service, so one
+ * admin action can be correlated end to end: in the service's access log, and in the audit event
+ * that service forwards for the write it just did. Set once per request in an `onRequest` hook
+ * (`http/console-api.js`) via `enterWith`, read by {@link ServiceClient#request}; nothing in
+ * between has to thread it through route handlers or client method signatures.
+ * @type {AsyncLocalStorage<string>}
+ */
+export const requestIdContext = new AsyncLocalStorage();
 
 /** Error from a downstream service, carrying its HTTP status and error code when available. */
 export class ServiceError extends Error {
@@ -78,7 +90,10 @@ export class ServiceClient {
    */
   async request(method, path, o = {}) {
     /** @type {Record<string, string>} */
-    const headers = { accept: 'application/json, text/plain;q=0.9, */*;q=0.1', ...(o.headers ?? {}) };
+    const headers = { accept: 'application/json, text/plain;q=0.9, */*;q=0.1' };
+    const reqId = requestIdContext.getStore();
+    if (reqId) headers['x-request-id'] = reqId;
+    Object.assign(headers, o.headers);
     const auth = o.auth ?? 'apiKey';
     if (auth === 'apiKey' && this.def.apiKey) headers.authorization = `Bearer ${this.def.apiKey}`;
     if (auth === 'metrics' && this.def.metricsToken) headers.authorization = `Bearer ${this.def.metricsToken}`;

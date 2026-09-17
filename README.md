@@ -134,6 +134,26 @@ Scenario walkthroughs for every feature live in [examples/](examples/README.md).
 
 When an `audit` service is configured in `services.json` with a key that has the write role, every console log entry (sign-ins, admin management, every write done through the console) is also sent to it as `console.<action>` with the admin as actor and the affected entity as target, so one hash-chained history covers the services and the people operating them. Forwarding is buffered and never slows down the console; the entries stay in the console's own log regardless.
 
+## Scaling model
+
+Single-node stateful: one process, one SQLite file for admins/sessions/its own log, an in-memory
+login rate limiter, and (since this stage) an `AsyncLocalStorage`-based request context — inherently
+per-process, not something that needs to be shared. Two instances against the same database file
+are not a supported deployment.
+
+## Observability
+
+Forwards its own inbound request id (`X-Request-Id`) on every outbound call it makes to a service,
+via `AsyncLocalStorage` in `src/services/client.js`, so no route handler threads it through by hand.
+Does not yet forward `traceparent`. No `/metrics` of its own — it reads other services'.
+
+## Backup / restore
+
+Back up the console's own database (admins, sessions, its log) and `services.json` together;
+restoring either alone leaves the connection list momentarily out of date but not unsafe.
+
+See [docs/READINESS.md](docs/READINESS.md) for the full contract.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

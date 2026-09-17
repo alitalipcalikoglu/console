@@ -12,7 +12,7 @@ import { SchedulerClient } from '../services/scheduler-client.js';
 import { GeoClient } from '../services/geo-client.js';
 import { RateLimitClient } from '../services/ratelimit-client.js';
 import { SearchClient } from '../services/search-client.js';
-import { ServiceError } from '../services/client.js';
+import { requestIdContext, ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
 import { NotifyClient } from '../services/notify-client.js';
@@ -220,6 +220,7 @@ export class ConsoleApi {
     app.decorateRequest('admin', null);
     app.decorateRequest('consoleSession', null);
     app.setErrorHandler(this.#errorHandler);
+    app.addHook('onRequest', async (request) => { requestIdContext.enterWith(request.id); });
     app.addHook('onRequest', this.session.attach);
     app.addHook('onSend', async (request, reply) => {
       reply.header('x-content-type-options', 'nosniff');
