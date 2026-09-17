@@ -10,6 +10,8 @@ import { ServiceClients } from './services/clients.js';
 import { ServiceRegistry } from './services/registry.js';
 import { AdminStore } from './store/admin-store.js';
 import { AuditStore } from './store/audit-store.js';
+import { AuditEvents } from './domain/audit-events.js';
+import { AuditClient } from './net/audit-client.js';
 import { SessionStore } from './store/session-store.js';
 
 /** Composition root: wires storage, domain, service clients and HTTP; owns the process lifecycle. */
@@ -25,6 +27,10 @@ export class Application {
     this.admins = new AdminStore(this.db);
     this.sessions = new SessionStore(this.db);
     this.audit = new AuditStore(this.db);
+    // The console log is also forwarded to the first configured audit service (its key must have the write role).
+    const auditService = registry.ofType('audit')[0];
+    this.forwarder = new AuditClient({ target: auditService?.apiKey ? { url: auditService.url, apiKey: auditService.apiKey } : null });
+    this.audit.onRecord = (e, at) => { this.forwarder.record(AuditEvents.fromLogEntry(e, at)); };
     this.hasher = new PasswordHasher({ logN: config.scryptLogN });
     this.auth = new ConsoleAuth({
       admins: this.admins, sessions: this.sessions, audit: this.audit, hasher: this.hasher, log: /** @type {any} */ (console),
@@ -60,6 +66,8 @@ export class Application {
     this.auth.log = app.log.child({ component: 'auth' });
     this.maintenance = new Maintenance({ sessions: this.sessions, audit: this.audit, log: app.log.child({ component: 'maintenance' }), options: { sessionIdleMs: this.config.sessionIdleMin * 60_000, auditRetentionDays: this.config.auditRetentionDays } });
     this.#installSignalHandlers(app.log);
+    this.forwarder.logger = app.log;
+    this.forwarder.start();
     await app.listen({ port: this.config.port, host: this.config.host });
     if (this.admins.activeAdminCount() === 0) app.log.warn('no administrator exists yet: run `npm run admin -- create <email>`');
     app.log.info({ tls: this.config.tls !== null, services: this.registry.describe().map((s) => `${s.id}(${s.type})`) }, this.config.tls ? 'serving HTTPS' : 'serving plain HTTP, terminate TLS at a reverse proxy');
@@ -80,6 +88,7 @@ export class Application {
     try {
       this.maintenance?.stop();
       await this.app?.close();
+      await this.forwarder.close();
       this.db.close();
       clearTimeout(forceExit);
       log.info('shutdown complete');

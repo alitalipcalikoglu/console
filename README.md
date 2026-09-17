@@ -130,6 +130,10 @@ Scenario walkthroughs for every feature live in [examples/](examples/README.md).
 - Single sign-on for the console itself (the console must work when auth is down).
 - Editing gateway routes: the gateway reads `routes.json` from disk; the console shows what it reports.
 
+## Forwarding the console log to the audit service
+
+When an `audit` service is configured in `services.json` with a key that has the write role, every console log entry (sign-ins, admin management, every write done through the console) is also sent to it as `console.<action>` with the admin as actor and the affected entity as target, so one hash-chained history covers the services and the people operating them. Forwarding is buffered and never slows down the console; the entries stay in the console's own log regardless.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

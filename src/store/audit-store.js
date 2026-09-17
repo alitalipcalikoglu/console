@@ -7,6 +7,8 @@ export class AuditStore {
 
   /** @param {Database} db */
   constructor(db) {
+    /** Called after every insert, e.g. to forward the entry to the audit service. @type {((e: { adminId: string|null, adminEmail: string|null, action: string, target: string|null, meta: object|null, ip: string|null }, at: number) => void)|null} */
+    this.onRecord = null;
     const C = AuditStore.COLUMNS;
     this.stmt = {
       insert: db.prepare(`INSERT INTO audit (admin_id, admin_email, action, target, meta, ip, at) VALUES (?, ?, ?, ?, ?, ?, ?)`),
@@ -22,6 +24,7 @@ export class AuditStore {
    */
   record({ adminId = null, adminEmail = null, action, target = null, meta = null, ip = null }, now = Date.now()) {
     this.stmt.insert.run(adminId, adminEmail, action, target, meta ? JSON.stringify(meta) : null, ip, now);
+    this.onRecord?.({ adminId, adminEmail, action, target, meta, ip }, now);
   }
 
   /**
