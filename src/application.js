@@ -24,7 +24,7 @@ export class Application {
   constructor(config, registry) {
     this.config = config;
     this.registry = registry;
-    this.db = new Database(config.dbPath);
+    this.db = new Database(config.dbPath, { backupDir: config.dbBackupDir });
     this.admins = new AdminStore(this.db);
     this.sessions = new SessionStore(this.db);
     this.audit = new AuditStore(this.db);

@@ -151,6 +151,14 @@ Does not yet forward `traceparent`. No `/metrics` of its own — it reads other 
 
 Back up the console's own database (admins, sessions, its log) and `services.json` together;
 restoring either alone leaves the connection list momentarily out of date but not unsafe.
+`stack backup`/`stack restore` from the workspace root (see `stack/docs/UPGRADE.md`) captures both
+together. On every start, before applying a pending migration to an existing database, the service
+itself also snapshots the database file to `DB_PATH.pre-v<N>-<timestamp>` (directory overridable
+with `DB_BACKUP_DIR`) — a manual last resort if `stack restore` is unavailable.
+
+**Rollback limitations:** none of the migrations are reversible; to roll back, restore the
+pre-migration copy (or a `stack backup` snapshot taken before the upgrade) and run the previous
+version of this service against it.
 
 See [docs/READINESS.md](docs/READINESS.md) for the full contract.
 

@@ -8,6 +8,7 @@
  * @property {boolean} trustProxy
  * @property {{ certPath: string, keyPath: string }|null} tls
  * @property {string} dbPath
+ * @property {string} [dbBackupDir]
  * @property {string} servicesFile
  * @property {string} publicDir
  * @property {boolean} cookieSecure

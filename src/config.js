@@ -12,6 +12,7 @@ export class Config {
     this.trustProxy = v.trustProxy;
     this.tls = v.tls;
     this.dbPath = v.dbPath;
+    this.dbBackupDir = v.dbBackupDir;
     this.servicesFile = v.servicesFile;
     this.publicDir = v.publicDir;
     this.cookieSecure = v.cookieSecure;
@@ -45,6 +46,7 @@ export class Config {
       trustProxy: r.boolean('TRUST_PROXY', false),
       tls: certPath ? { certPath, keyPath } : null,
       dbPath: r.optional('DB_PATH') || './data/console.db',
+      dbBackupDir: r.optional('DB_BACKUP_DIR') || undefined,
       servicesFile: r.optional('SERVICES_FILE') || './services.json',
       publicDir: r.optional('PUBLIC_DIR') || './public',
       cookieSecure: r.boolean('COOKIE_SECURE', true),
