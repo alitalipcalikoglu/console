@@ -91,31 +91,37 @@ The console instead *reads* other services' `/metrics` (via `PrometheusText.pars
 ## Logging
 
 Fastify's default request logging (no custom access-log line the way gateway has one); redacts
-`authorization` and `cookie`. See [OBSERVABILITY.md](../../stack/docs/OBSERVABILITY.md) for the
-target field vocabulary — `service`/`version`/`traceId` are not yet emitted here either.
+`authorization` and `cookie`. `traceId`/`spanId` are emitted on every line (see Tracing below). See
+[OBSERVABILITY.md](../../stack/docs/OBSERVABILITY.md) for the target field vocabulary —
+`service`/`version` are not yet emitted here.
 
 ## Tracing
 
-Forwards its own inbound request id (`X-Request-Id`) on every outbound call to a service, via
-`AsyncLocalStorage` (`src/services/client.js`: `requestIdContext`, set once per request in an
-`onRequest` hook in `src/http/console-api.js`) — no route handler or client method has to thread it
-through explicitly. The console's own inbound id is always self-generated (`requestIdHeader:
-false`) — unlike the gateway, there is no upstream proxy whose header would make sense to trust
-here, so there is no `TRUST_PROXY`-style gate on it.
+Forwards its own request id (`X-Request-Id`) on every outbound call to a service, via
+`RequestContext#propagationHeaders()` (`@atc-web/service-core/request-context`, wired in
+`src/services/client.js`) — no route handler or client method has to thread it through explicitly.
+The console's own inbound id is always self-generated (`requestIdHeader: false`) — unlike the
+gateway, there is no upstream proxy whose header would make sense to trust here, so there is no
+`TRUST_PROXY`-style gate on it.
 
-As of Stage 10, the same applies to `traceparent` (`src/trace-context.js`, `TraceContext`;
-`src/services/client.js`: `traceContext`): console mints a fresh W3C trace (`TraceContext.forRequest()`)
-for every inbound request it handles — an inbound `traceparent` from the browser is never read,
-parsed, or trusted, exactly like `X-Request-Id`'s existing policy, for the identical reason (console
-is a trust boundary, not an internal service reached only from other trusted services). A fresh span
-id is minted per *outbound hop* (`TraceContext#span()`), not once and reused for every downstream
-call — one console request commonly fans out to several services, and each of those is genuinely a
-separate hop under the same trace. The trace-id is echoed back to the browser on the response
-(`traceparent` response header) so it correlates with what was forwarded to whichever service(s) the
-request called, even though the browser's own (if any) claimed trace-id was never the one used.
-Regression-tested in `test/trace-context.test.js`: forwarding, per-request trace-id isolation
-(including under real concurrency), per-hop span freshness, and a malformed or spoofed inbound
-`traceparent` never crashing the request or leaking through to a downstream call.
+As of post-production Phase 5, `traceparent` handling moved from console's own local copy
+(`src/trace-context.js`, a local `AsyncLocalStorage` in `src/services/client.js`) to the shared
+`@atc-web/service-core/trace` + `/request-context` primitives every backend service uses, wired via
+`registerRequestContext(app, { trustProxy: config.trustProxy })` in `src/http/console-api.js` — same
+behaviour, same trust policy, no longer a duplicated implementation. Console's `trustProxy` (default
+`false`, since a browser reaches console directly with no proxy in front of it) gates whether an
+inbound `traceparent` is ever adopted: untrusted or absent, console mints a fresh W3C trace for
+every inbound request; trusted and well-formed, the caller's trace-id is continued instead. A fresh
+span id is minted per *outbound hop* (`TraceContext#span()`, via `propagationHeaders()`), not once
+and reused for every downstream call — one console request commonly fans out to several services,
+and each of those is genuinely a separate hop under the same trace. The trace-id is echoed back to
+the browser on the response (`traceparent` response header) so it correlates with what was forwarded
+to whichever service(s) the request called. Regression-tested in `test/trace-context.test.js`:
+forwarding, per-request trace-id isolation (including under real concurrency), per-hop span
+freshness, trusted-inbound-adoption under `TRUST_PROXY=true`, and a malformed or spoofed inbound
+`traceparent` never crashing the request or leaking through to a downstream call. A real,
+separate-process console → audit E2E (`stack/test/integration/console-audit-trace.test.js`) proves
+the same trace-id crosses into a real downstream service with a fresh span-id there.
 
 ## Security model
 

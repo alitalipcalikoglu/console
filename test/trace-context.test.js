@@ -104,3 +104,35 @@ test('an inbound traceparent claiming a trace-id, even a well-formed one, is nev
   const outbound = String(seen[0].headers.traceparent);
   assert.notEqual(outbound.match(TRACEPARENT)?.[1], claimedTraceId, 'the browser-claimed trace-id is never trusted or propagated');
 });
+
+/**
+ * Post-production Phase 5: with TRUST_PROXY=true (the operator declaring a trusted reverse proxy
+ * sits in front of this console instance — the exact same declaration already gates
+ * X-Forwarded-For), a valid inbound traceparent IS now adopted. A separate console instance, since
+ * the default (untrusted) instance above is what every other test in this file deliberately
+ * exercises.
+ */
+test('with TRUST_PROXY=true, a well-formed inbound traceparent IS adopted: same trace-id propagated downstream, fresh span-id for the hop', async () => {
+  const trusting = await testConsole({ urls: { search: origin(), ratelimit: origin() }, env: { TRUST_PROXY: 'true' } });
+  const { cookie: trustingCookie } = await signIn(trusting);
+  try {
+    seen.length = 0;
+    const claimedTraceId = 'c'.repeat(32);
+    const claimedSpanId = 'd'.repeat(16);
+    const res = await trusting.app.inject({ url: '/api/services/search/search/indexes', headers: { cookie: trustingCookie, ...CSRF, traceparent: `00-${claimedTraceId}-${claimedSpanId}-01` } });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(seen.length, 1);
+    const outbound = String(seen[0].headers.traceparent);
+    assert.match(outbound, TRACEPARENT);
+    assert.equal(outbound.match(TRACEPARENT)?.[1], claimedTraceId, 'trusted: the inbound trace-id IS continued downstream');
+    assert.notEqual(outbound.match(TRACEPARENT)?.[2], claimedSpanId, 'the downstream hop still gets its own fresh span-id, never the caller\'s reused');
+    assert.equal(res.headers.traceparent?.toString().match(TRACEPARENT)?.[1], claimedTraceId, 'echoed response also carries the continued trace-id');
+
+    seen.length = 0;
+    const malformedRes = await trusting.app.inject({ url: '/api/services/search/search/indexes', headers: { cookie: trustingCookie, ...CSRF, traceparent: 'garbage' } });
+    assert.equal(malformedRes.statusCode, 200, malformedRes.body);
+    assert.match(String(seen[0].headers.traceparent), TRACEPARENT, 'trusted but malformed: still falls back to a fresh, well-formed trace, never crashes');
+  } finally {
+    await trusting.app.close();
+  }
+});

@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
-import { registerInfo } from '@atc-web/service-core/fastify';
+import { registerInfo, registerRequestContext } from '@atc-web/service-core/fastify';
+import { RequestContext } from '@atc-web/service-core/request-context';
 import { AdminService } from '../domain/admin-service.js';
 import { ConsoleError } from '../domain/errors.js';
 import { AuditClient } from '../services/audit-client.js';
@@ -13,8 +14,7 @@ import { SchedulerClient } from '../services/scheduler-client.js';
 import { GeoClient } from '../services/geo-client.js';
 import { RateLimitClient } from '../services/ratelimit-client.js';
 import { SearchClient } from '../services/search-client.js';
-import { requestIdContext, ServiceError, traceContext } from '../services/client.js';
-import { TraceContext } from '../trace-context.js';
+import { ServiceError } from '../services/client.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
 import { NotifyClient } from '../services/notify-client.js';
@@ -224,16 +224,17 @@ export class ConsoleApi {
     app.decorateRequest('admin', null);
     app.decorateRequest('consoleSession', null);
     app.setErrorHandler(this.#errorHandler);
-    app.addHook('onRequest', async (request) => {
-      requestIdContext.enterWith(request.id);
-      traceContext.enterWith(TraceContext.forRequest());
-    });
+    // Post-production Phase 5: honours a valid inbound traceparent only when TRUST_PROXY=true —
+    // the same trust boundary console already declares for X-Forwarded-For, not a new one. The
+    // browser reaches console directly with no boundary to gate by default (TRUST_PROXY=false,
+    // console's own established default) — see registerRequestContext's own doc.
+    registerRequestContext(app, { trustProxy: config.trustProxy });
     app.addHook('onRequest', this.session.attach);
     app.addHook('onSend', async (request, reply) => {
       reply.header('x-content-type-options', 'nosniff');
       reply.header('referrer-policy', 'same-origin');
       reply.header('x-frame-options', 'DENY');
-      const trace = traceContext.getStore();
+      const trace = RequestContext.get()?.trace;
       if (trace) reply.header('traceparent', trace.toString());
       // Strict CSP for the app; file-byte responses set their own sandboxed policy.
       if (!reply.hasHeader('content-security-policy')) reply.header('content-security-policy', this.csp);
