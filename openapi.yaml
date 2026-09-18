@@ -8509,10 +8509,12 @@ components:
           type: integer
           description: The open SQLite schema version (`PRAGMA user_version`).
         serviceCore:
-          type:
-            - string
-            - "null"
-          description: Version of the `@atc-web/service-core` copy actually running.
+          type: string
+          description: >-
+            Version of the `@atc-web/service-core` copy actually running. Console imports
+            `registerInfo` from `@atc-web/service-core/fastify`, so unlike `gateway` (the one
+            service in this platform with no `service-core` dependency, where this field is
+            always `null`) this field is always a real semver string here, never `null`.
     Admin:
       type: object
       description: Administrator as `AdminService.view` projects it — never includes the password hash or the TOTP secret.
