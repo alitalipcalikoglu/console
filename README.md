@@ -225,9 +225,11 @@ are not a supported deployment.
 
 ## Observability
 
-Forwards its own inbound request id (`X-Request-Id`) on every outbound call it makes to a service,
-via `AsyncLocalStorage` in `src/services/client.js`, so no route handler threads it through by hand.
-Does not yet forward `traceparent`. No `/metrics` of its own — it reads other services'.
+Forwards its own inbound request id (`X-Request-Id`) and a `traceparent` on every outbound call it
+makes to a service, via `AsyncLocalStorage` in `src/services/client.js`, so no route handler threads
+either through by hand. Both are always self-generated, never adopted from an inbound header — the
+console is reached directly by browsers, so there is no upstream proxy header worth trusting, for
+either. No `/metrics` of its own — it reads other services'.
 
 ## Backup / restore
 

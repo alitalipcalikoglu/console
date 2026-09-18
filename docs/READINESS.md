@@ -96,13 +96,26 @@ target field vocabulary — `service`/`version`/`traceId` are not yet emitted he
 
 ## Tracing
 
-Forwards its own inbound request id (`X-Request-Id`) on every outbound call to a service, since
-this stage, via `AsyncLocalStorage` (`src/services/client.js`: `requestIdContext`, set once per
-request in an `onRequest` hook in `src/http/console-api.js`) — no route handler or client method
-has to thread it through explicitly. Does **not** forward `traceparent` (out of scope for this
-stage; see OBSERVABILITY.md). The console's own inbound id is always self-generated
-(`requestIdHeader: false`) — unlike the gateway, there is no upstream proxy whose header would make
-sense to trust here, so there is no `TRUST_PROXY`-style gate on it.
+Forwards its own inbound request id (`X-Request-Id`) on every outbound call to a service, via
+`AsyncLocalStorage` (`src/services/client.js`: `requestIdContext`, set once per request in an
+`onRequest` hook in `src/http/console-api.js`) — no route handler or client method has to thread it
+through explicitly. The console's own inbound id is always self-generated (`requestIdHeader:
+false`) — unlike the gateway, there is no upstream proxy whose header would make sense to trust
+here, so there is no `TRUST_PROXY`-style gate on it.
+
+As of Stage 10, the same applies to `traceparent` (`src/trace-context.js`, `TraceContext`;
+`src/services/client.js`: `traceContext`): console mints a fresh W3C trace (`TraceContext.forRequest()`)
+for every inbound request it handles — an inbound `traceparent` from the browser is never read,
+parsed, or trusted, exactly like `X-Request-Id`'s existing policy, for the identical reason (console
+is a trust boundary, not an internal service reached only from other trusted services). A fresh span
+id is minted per *outbound hop* (`TraceContext#span()`), not once and reused for every downstream
+call — one console request commonly fans out to several services, and each of those is genuinely a
+separate hop under the same trace. The trace-id is echoed back to the browser on the response
+(`traceparent` response header) so it correlates with what was forwarded to whichever service(s) the
+request called, even though the browser's own (if any) claimed trace-id was never the one used.
+Regression-tested in `test/trace-context.test.js`: forwarding, per-request trace-id isolation
+(including under real concurrency), per-hop span freshness, and a malformed or spoofed inbound
+`traceparent` never crashing the request or leaking through to a downstream call.
 
 ## Security model
 

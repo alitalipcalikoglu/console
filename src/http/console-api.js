@@ -13,7 +13,8 @@ import { SchedulerClient } from '../services/scheduler-client.js';
 import { GeoClient } from '../services/geo-client.js';
 import { RateLimitClient } from '../services/ratelimit-client.js';
 import { SearchClient } from '../services/search-client.js';
-import { requestIdContext, ServiceError } from '../services/client.js';
+import { requestIdContext, ServiceError, traceContext } from '../services/client.js';
+import { TraceContext } from '../trace-context.js';
 import { GatewayClient } from '../services/gateway-client.js';
 import { MediaClient } from '../services/media-client.js';
 import { NotifyClient } from '../services/notify-client.js';
@@ -223,12 +224,17 @@ export class ConsoleApi {
     app.decorateRequest('admin', null);
     app.decorateRequest('consoleSession', null);
     app.setErrorHandler(this.#errorHandler);
-    app.addHook('onRequest', async (request) => { requestIdContext.enterWith(request.id); });
+    app.addHook('onRequest', async (request) => {
+      requestIdContext.enterWith(request.id);
+      traceContext.enterWith(TraceContext.forRequest());
+    });
     app.addHook('onRequest', this.session.attach);
     app.addHook('onSend', async (request, reply) => {
       reply.header('x-content-type-options', 'nosniff');
       reply.header('referrer-policy', 'same-origin');
       reply.header('x-frame-options', 'DENY');
+      const trace = traceContext.getStore();
+      if (trace) reply.header('traceparent', trace.toString());
       // Strict CSP for the app; file-byte responses set their own sandboxed policy.
       if (!reply.hasHeader('content-security-policy')) reply.header('content-security-policy', this.csp);
       if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');

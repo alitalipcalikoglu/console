@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { TraceContext } from '../trace-context.js';
 
 /** @typedef {import('../types.js').ServiceDef} ServiceDef */
 
@@ -11,6 +12,15 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * @type {AsyncLocalStorage<string>}
  */
 export const requestIdContext = new AsyncLocalStorage();
+
+/**
+ * Carries this console request's {@link TraceContext} the same way {@link requestIdContext}
+ * carries the request id — set once in `http/console-api.js`'s `onRequest` hook, read by every
+ * outbound call {@link ServiceClient#request} makes. See `../trace-context.js` for why console
+ * always mints its own (never trusts an inbound `traceparent`) and mints a fresh span per hop.
+ * @type {AsyncLocalStorage<TraceContext>}
+ */
+export const traceContext = new AsyncLocalStorage();
 
 /** Error from a downstream service, carrying its HTTP status and error code when available. */
 export class ServiceError extends Error {
@@ -93,6 +103,8 @@ export class ServiceClient {
     const headers = { accept: 'application/json, text/plain;q=0.9, */*;q=0.1' };
     const reqId = requestIdContext.getStore();
     if (reqId) headers['x-request-id'] = reqId;
+    const trace = traceContext.getStore();
+    if (trace) headers.traceparent = trace.span().toString();
     Object.assign(headers, o.headers);
     const auth = o.auth ?? 'apiKey';
     if (auth === 'apiKey' && this.def.apiKey) headers.authorization = `Bearer ${this.def.apiKey}`;
@@ -175,7 +187,7 @@ export class ServiceClient {
     const text = await res.text();
     try {
       const data = JSON.parse(text);
-      if (!data || typeof data !== 'object') return { ok: false, error: 'malformed /v1/info response' };
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'malformed /v1/info response' };
       return { ok: true, data };
     } catch {
       return { ok: false, error: 'malformed /v1/info response (not JSON)' };
