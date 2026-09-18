@@ -91,6 +91,10 @@ One scheduler per service owns the timer: requests never overlap (a tick that ar
 
 Every operation goes through the console's own typed API (`/api/services/:id/…`), which calls the service with the console's key. There is no generic proxy: an action exists in the console only if the service exposes it. Destructive actions ask for confirmation (deleting a user requires typing the email) and every write is recorded in the console's audit log with actor, target and IP.
 
+## Configuration
+
+Environment only; see [.env.example](.env.example) for the full list, and "How it connects" above for `services.json`. Nothing is required for a fresh install to start; `SECRETS_KEY` is needed before any admin can enrol TOTP (see "TOTP secret storage"). Notable: `COOKIE_SECURE`, `CONSOLE_SESSION_TTL_MIN` / `CONSOLE_SESSION_IDLE_MIN`, `CONSOLE_LOGIN_MAX_FAILURES` / `CONSOLE_LOGIN_LOCKOUT_MIN`, `SCRYPT_LOG_N`, `AUDIT_RETENTION_DAYS`, `SERVICE_TIMEOUT_MS`, `RATE_LIMIT_MAX`, `TRUST_PROXY`, `TLS_CERT_PATH` / `TLS_KEY_PATH`.
+
 ## Security notes
 
 - Passwords: scrypt (`SCRYPT_LOG_N`), minimum 12 characters, no email-derived passwords. Lockout after `CONSOLE_LOGIN_MAX_FAILURES`. Login attempts rate-limited per IP.
