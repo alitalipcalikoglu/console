@@ -23,9 +23,11 @@
     "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./jsconfig.json"
   },
   "dependencies": {
-    "@atc-web/service-core": "github:alitalipcalikoglu/service-core#v1.11.1",
+    "@atc-web/service-core": "github:alitalipcalikoglu/service-core#31c0d4819e3c54a209569437b5e5a00142eb5486",
     "@fastify/static": "10.1.3",
-    "fastify": "5.12.4"
+    "fastify": "5.12.4",
+    "swagger-ui-dist": "5.33.0",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.0",

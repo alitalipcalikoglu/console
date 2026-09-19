@@ -40,6 +40,8 @@ tags:
     description: console's own local admin-activity log.
   - name: services
     description: The configured service registry, live probes and console-side settings.
+  - name: documentation
+    description: Authenticated, allowlisted aggregation of canonical service OpenAPI documents.
   - name: notify
     description: Pass-through to a notify instance.
   - name: auth
@@ -63,6 +65,19 @@ tags:
   - name: geo
     description: Pass-through to a geo instance.
 paths:
+  /openapi.yaml:
+    get:
+      operationId: console.openapi
+      summary: Download the canonical OpenAPI document
+      description: Returns this service's repository-root OpenAPI 3.1 document byte-for-byte.
+      security: []
+      responses:
+        "200":
+          description: Canonical OpenAPI document.
+          content:
+            text/yaml:
+              schema: { type: string }
+
   /health:
     get:
       operationId: console.health.get
@@ -919,6 +934,65 @@ paths:
           $ref: "#/components/responses/ValidationFailed"
         "401":
           $ref: "#/components/responses/Unauthenticated"
+  /api/docs/services:
+    get:
+      operationId: console.docs.services.list
+      tags: [documentation]
+      summary: List services with API documentation.
+      description: Returns Console plus every explicitly configured service instance. No credentials or internal URLs are exposed.
+      x-required-role: session
+      x-stack-visibility: operator
+      responses:
+        "200":
+          description: Documentation service selector entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/DocumentationService" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/docs/services/{sid}/openapi:
+    get:
+      operationId: console.docs.openapi.get
+      tags: [documentation]
+      summary: Get one validated canonical OpenAPI document.
+      description: >-
+        Reads Console's own repository-root document locally, or fetches the selected allowlisted
+        service's public `/openapi.yaml` once with a bounded timeout and no API key. The response is
+        returned only after parsing and validating its OpenAPI 3.1, info.title and paths structure.
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-z0-9][a-z0-9-]*$", maxLength: 40 }
+      x-required-role: session
+      x-stack-visibility: operator
+      responses:
+        "200":
+          description: Parsed OpenAPI document and its public service identity.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, document]
+                properties:
+                  service: { $ref: "#/components/schemas/DocumentationService" }
+                  document:
+                    type: object
+                    required: [openapi, info, paths]
+                    additionalProperties: true
+                    properties:
+                      openapi: { type: string, pattern: "^3\\.1(?:\\.|$)" }
+                      info: { type: object, required: [title], additionalProperties: true, properties: { title: { type: string } } }
+                      paths: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/DocumentationUpstreamError" }
+        "504": { $ref: "#/components/responses/DocumentationUpstreamError" }
   /api/services:
     get:
       operationId: console.services.list
@@ -8353,6 +8427,12 @@ components:
                   code: UPSTREAM_UNREACHABLE
                   message: "notify unreachable: The operation was aborted due to timeout"
                   service: notify
+    DocumentationUpstreamError:
+      description: The selected service was unreachable, timed out, returned a non-success status, or served an invalid OpenAPI document.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DownstreamErrorEnvelope"
     DownstreamDefault:
       description: Any other status the downstream service returned, relayed with its own status code, `error.code`,
         `error.message` and `error.details`, plus `error.service`. console does not translate, normalize or
@@ -8642,6 +8722,16 @@ components:
         at:
           type: string
           format: date-time
+    DocumentationService:
+      type: object
+      description: Public identity used by the API documentation selector; contains no URL or credential.
+      required: [id, type, label]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [audit, auth, console, flags, gateway, geo, media, notify, ratelimit, scheduler, search, shortlink, webhook-out]
+        label: { type: string }
     ServiceDescriptor:
       type: object
       description: A configured service instance as `ServiceRegistry#describe` projects it. API keys and metrics

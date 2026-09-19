@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
-import { registerInfo, registerRequestContext } from '@atc-web/service-core/fastify';
+import { registerInfo, registerOpenApi, registerRequestContext } from '@atc-web/service-core/fastify';
 import { RequestContext } from '@atc-web/service-core/request-context';
 import { AdminService } from '../domain/admin-service.js';
 import { ConsoleError } from '../domain/errors.js';
@@ -189,17 +189,19 @@ export class ConsoleApi {
    * @param {AdminService} deps.adminService
    * @param {import('../store/audit-store.js').AuditStore} deps.audit
    * @param {import('../services/clients.js').ServiceClients} deps.clients
+   * @param {import('../services/openapi-documents.js').OpenApiDocuments} deps.docs
    * @param {import('../db.js').Database} deps.db
    * @param {import('../rate-limiter.js').RateLimiter} deps.limiter
    * @param {string} deps.version
    * @param {import('../types.js').Logger} [deps.logger]
    */
-  constructor({ config, auth, adminService, audit, clients, db, limiter, version, logger }) {
+  constructor({ config, auth, adminService, audit, clients, docs, db, limiter, version, logger }) {
     this.config = config;
     this.auth = auth;
     this.adminService = adminService;
     this.audit = audit;
     this.clients = clients;
+    this.docs = docs;
     this.db = db;
     this.limiter = limiter;
     this.version = version;
@@ -251,6 +253,7 @@ export class ConsoleApi {
         return reply.code(503).send({ status: 'unavailable', error: err instanceof Error ? err.message : String(err) });
       }
     });
+    registerOpenApi(app, new URL('../../openapi.yaml', import.meta.url));
     registerInfo(app, {
       service: 'console',
       version: this.version,
@@ -413,6 +416,11 @@ export class ConsoleApi {
 
     // ---------------------------------------------------------------- services: overview
     api.get('/services', async (request) => { s.requireSession(request); return { items: this.clients.registry.describe() }; });
+    api.get('/docs/services', async (request) => { s.requireSession(request); return { items: this.docs.list() }; });
+    api.get('/docs/services/:sid/openapi', { schema: { params: Schemas.serviceParams } }, async (request) => {
+      s.requireSession(request);
+      return this.docs.get(sid(request));
+    });
     api.get('/services/overview', async (request) => { s.requireSession(request); return { items: await this.clients.overview() }; });
     api.get('/services/about', async (request) => { s.requireSession(request); return { items: await this.clients.about() }; });
     api.patch('/services/:sid/settings', { schema: { params: Schemas.serviceParams, body: Schemas.body(['polling'], { polling: Schemas.body(['enabled', 'intervalSec'], { enabled: { type: 'boolean' }, intervalSec: { type: 'integer', minimum: 5, maximum: 3600 } }) }) } }, async (request) => {

@@ -75,7 +75,7 @@ export class ServiceClient {
   /**
    * @param {string} method
    * @param {string} path
-   * @param {{ body?: unknown, raw?: BodyInit, headers?: Record<string, string>, auth?: 'apiKey'|'metrics'|'none', timeoutMs?: number }} [o]
+   * @param {{ body?: unknown, raw?: BodyInit, headers?: Record<string, string>, auth?: 'apiKey'|'metrics'|'none', timeoutMs?: number, distinguishTimeout?: boolean }} [o]
    * @returns {Promise<Response>}
    */
   async request(method, path, o = {}) {
@@ -97,7 +97,13 @@ export class ServiceClient {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new ServiceError(`${this.def.id} unreachable: ${msg}`, { statusCode: 502, code: 'UPSTREAM_UNREACHABLE', service: this.def.id });
+      const timeout = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      const distinguishTimeout = timeout && o.distinguishTimeout;
+      throw new ServiceError(`${this.def.id} ${timeout ? 'timed out' : `unreachable: ${msg}`}`, {
+        statusCode: distinguishTimeout ? 504 : 502,
+        code: distinguishTimeout ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNREACHABLE',
+        service: this.def.id,
+      });
     }
   }
 

@@ -20,6 +20,7 @@ RUN mkdir -p /data /config && chown node:node /data /config
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=ui /app/public ./public
 COPY package.json ./
+COPY openapi.yaml ./
 COPY src ./src
 COPY scripts ./scripts
 USER node

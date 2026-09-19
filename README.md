@@ -4,7 +4,7 @@ One installable web app to watch and operate the atc-web services: notify, auth,
 
 The console depends on nothing else to run: its own administrator accounts, sessions, two-factor authentication and audit log live in its own SQLite database. Services are reached over HTTP with dedicated API keys; a service being down shows up as a red card, not as a broken console.
 
-Runtime dependencies: `fastify`, `@fastify/static`. Build-time only: `svelte`, `vite`. Storage via `node:sqlite` (Node 22.13+).
+Runtime dependencies include `fastify`, `@fastify/static` and `yaml`; the locally bundled API reference uses `swagger-ui-dist`. Build-time only: `svelte`, `vite`. Storage via `node:sqlite` (Node 22.13+).
 
 ## Run
 
@@ -60,6 +60,7 @@ npm run typecheck
 | Search | indexes with document counts, facet keys and last indexing; per-index search page with live query, sort, facet filters (kept in the URL), highlighted results and a document dialog | create and edit indexes (weights, facet keys), clear, delete, delete a document |
 | Rate limits | policies with windows, overrides, active subjects and 24 h allowed/denied; per-policy page with hourly decision bars (24 h / 3 d / 7 d), subject lookup showing every window's usage, top consumers per window, overrides with expiry | create and edit policies (windows editor), add/edit/delete overrides (custom limits or block, note, expiry), reset a subject's usage, delete |
 | Geo | IP database state (type, build date, file, lookups), IP lookup with country/region/city/location/time zone/ASN, phone normalization, distance; reference tables (countries, currencies, time zones) in any language; place collections with counts; collection page with places, nearby test and JSON upload | create and edit collections, upload places, delete a place, clear, delete, reload the IP database |
+| API Docs | live OpenAPI 3.1 reference for Console and every configured service, fetched from each service's canonical `/openapi.yaml` | view only; request execution and authorization input are disabled |
 | About | version, API contract version, real capabilities, schema version and service-core version per service, read live from each service's own `/v1/info` — never a hardcoded list, degrades gracefully (shown as unavailable) for an unreachable or too-old service | refresh |
 | Console log | who did what in the console, filter by action prefix | – |
 | Admins | console accounts, roles, 2FA state, last login | add, change role, disable, set password, unlock, delete |
@@ -90,6 +91,8 @@ Each service may carry `"polling": { "enabled": false, "intervalSec": 30 }`: aut
 One scheduler per service owns the timer: requests never overlap (a tick that arrives while a request is in flight is folded into exactly one follow-up run), every run is timed, and the last ten durations drive an adaptive interval of at least 1.3× the average (a service averaging 10 s is asked every 13 s at most, whatever the setting says). When the effective interval changes the old timer is destroyed and a new one started. The service page shows the numbers: setting, effective interval, average, last, runs, errors, coalesced ticks and a bar per request.
 
 Every operation goes through the console's own typed API (`/api/services/:id/…`), which calls the service with the console's key. There is no generic proxy: an action exists in the console only if the service exposes it. Destructive actions ask for confirmation (deleting a user requires typing the email) and every write is recorded in the console's audit log with actor, target and IP.
+
+API Docs is a narrow exception for public operational metadata, not a general proxy. The authenticated Console endpoint fetches only the fixed `/openapi.yaml` path from allowlisted `services.json` entries, without a service API key, with a three-second timeout and no retries. Console reads its own root `openapi.yaml` locally to avoid loopback. Documents are fetched on demand, size-bounded, parsed and defensively checked as OpenAPI 3.1 before the browser receives them; no second contract copy or cache is maintained. Swagger UI assets are bundled locally and configured as a renderer only: remote validation, authorization persistence and all request execution are disabled.
 
 ## Configuration
 
@@ -200,7 +203,7 @@ Class-based; dependencies are injected through constructors, `src/application.js
 | `PasswordHasher`, `OpaqueToken`, `Totp`, `TotpKeyring` | `src/crypto/` | scrypt, session tokens, RFC 6238, current/previous key rotation over `SecretBox` |
 | `AdminStore`, `SessionStore`, `AuditStore` | `src/store/` | Persistence |
 | `ConsoleAuth`, `AdminService`, `ConsoleError` | `src/domain/` | Sign-in, 2FA, sessions; admin management; error codes |
-| `ServiceRegistry`, `ServiceClients`, `*Client`, `PrometheusText` | `src/services/` | services.json, typed clients per service, metrics parsing |
+| `ServiceRegistry`, `ServiceClients`, `OpenApiDocuments`, `*Client`, `PrometheusText` | `src/services/` | services.json, typed clients per service, live OpenAPI aggregation, metrics parsing |
 | `ConsoleApi`, `SessionAuth` | `src/http/` | Routes, cookies, CSRF, roles, static app |
 | `RateLimiter`, `Maintenance` | `src/` | Login throttling, hourly purge |
 | `AdminCli` | `scripts/admin.js` | Create/list/reset administrators |

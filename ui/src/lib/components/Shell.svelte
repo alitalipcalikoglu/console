@@ -15,7 +15,7 @@
   const current = $derived(router.path);
   /** @param {string} href */
   const active = (href) => (href === '/' ? current === '/' : current === href || current.startsWith(`${href}/`));
-  const primaryMobile = $derived([{ href: '/', icon: 'home', label: t('nav.overview') }, ...services.items.slice(0, 3).map((s) => ({ href: `/${s.type}/${s.id}`, icon: ICONS[s.type], label: s.label })), { href: '/account', icon: 'user', label: t('nav.account') }]);
+  const primaryMobile = $derived([{ href: '/', icon: 'home', label: t('nav.overview') }, ...services.items.slice(0, 3).map((s) => ({ href: `/${s.type}/${s.id}`, icon: ICONS[s.type], label: s.label })), { href: '/docs', icon: 'file', label: t('nav.docs') }, { href: '/account', icon: 'user', label: t('nav.account') }]);
 </script>
 
 <div class="shell">
@@ -27,6 +27,7 @@
       <a href="/{s.type}/{s.id}" aria-current={active(`/${s.type}/${s.id}`) ? 'page' : undefined}><Icon name={ICONS[s.type]} /> <span class="truncate">{s.label}</span><span class="dot {services.health(s.id)}" title={services.health(s.id)}></span></a>
     {/each}
     <div class="section">{t('nav.console')}</div>
+    <a href="/docs" aria-current={active('/docs') ? 'page' : undefined}><Icon name="file" /> {t('nav.docs')}</a>
     <a href="/audit" aria-current={active('/audit') ? 'page' : undefined}><Icon name="list" /> {t('nav.audit')}</a>
     {#if session.isAdmin}<a href="/admins" aria-current={active('/admins') ? 'page' : undefined}><Icon name="shield" /> {t('nav.admins')}</a>{/if}
     <a href="/about" aria-current={active('/about') ? 'page' : undefined}><Icon name="info" /> {t('nav.about')}</a>

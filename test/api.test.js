@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,6 +20,7 @@ const fake = createServer((req, res) => {
     if (p === '/health') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/ready') return res.writeHead(200).end('{"status":"ok"}');
     if (p === '/v1/info') return json(200, { service: 'fake', version: '1.2.3', apiVersion: 'v1', capabilities: ['x'], schemaVersion: 4, serviceCore: '1.10.0' });
+    if (p === '/openapi.yaml') return res.writeHead(200, { 'content-type': 'text/yaml' }).end('openapi: 3.1.0\ninfo:\n  title: fake\n  version: 1.0.0\npaths: {}\n');
     if (p === '/metrics') return res.writeHead(200, { 'content-type': 'text/plain' }).end('notify_messages{status="queued"} 3\nnotify_messages{status="failed"} 1\nnotify_oldest_queued_age_seconds 4.5\nauth_users{status="active"} 12\nmedia_files 7\ngateway_requests_total{route="web",status="2xx"} 10\ngateway_request_duration_ms_bucket{route="web",le="50"} 8\ngateway_request_duration_ms_bucket{route="web",le="+Inf"} 10\ngateway_request_duration_ms_count{route="web"} 10\ngateway_rejected_total{reason="rate_limited"} 2\naudit_events_total 42\naudit_events_by_source{source="auth"} 40\naudit_events_received_last_hour 5\naudit_chain_head_seq 42\naudit_db_bytes 8192\nshortlink_links{state="active"} 9\nshortlink_links{state="inactive"} 1\nshortlink_clicks_total 120\nshortlink_clicks_last_hour 4\nflags_total{state="active"} 3\nflags_total{state="archived"} 1\nflags_enabled{env="prod"} 2\nflags_evaluations_total{env="prod"} 77\nscheduler_jobs{state="enabled"} 5\nscheduler_jobs{state="disabled"} 1\nscheduler_runs{status="succeeded"} 40\nscheduler_runs{status="failed"} 2\nscheduler_runs_finished_total{status="failed"} 1\nscheduler_in_flight 0\nscheduler_next_due_seconds 120\nwebhook_subscriptions{status="active"} 4\nwebhook_subscriptions{status="disabled"} 1\nwebhook_events_total 90\nwebhook_deliveries{status="succeeded"} 80\nwebhook_deliveries{status="failed"} 3\nwebhook_backlog 2\nwebhook_oldest_queued_age_seconds 30\nwebhook_deliveries_finished_total{status="failed"} 1\nsearch_indexes 2\nsearch_documents_total 150\nsearch_queries_total{index="products"} 30\nsearch_db_bytes 4096\nratelimit_policies 3\nratelimit_decisions_total{policy="api",decision="allowed"} 500\nratelimit_decisions_total{policy="api",decision="denied"} 7\nratelimit_decisions_total{policy="login",decision="denied"} 3\nratelimit_counters 12\nratelimit_db_bytes 2048\ngeo_ip_lookups_total{result="hit"} 40\ngeo_ip_lookups_total{result="miss"} 2\ngeo_database_loaded 1\ngeo_database_build_epoch 1758067200\ngeo_collections 1\ngeo_places_total 3\ngeo_db_bytes 4096\n');
     if (p === '/v1/messages' && req.method === 'GET') return json(200, { items: [{ id: 'm1', status: 'failed' }], nextCursor: null });
     if (p === '/v1/messages/m1/retry') return json(200, { id: 'm1', status: 'queued' });
@@ -173,6 +174,33 @@ test('GET /v1/info reports console\'s own identity and capabilities (Stage 7)', 
   assert.deepEqual(body.capabilities, ['totp', 'admin-roles', 'audit-trail', 'service-proxy']);
   assert.equal(typeof body.schemaVersion, 'number');
   assert.equal(typeof body.serviceCore, 'string');
+});
+
+test('GET /openapi.yaml is public and byte-identical to the canonical root document', async () => {
+  const res = await t.app.inject('/openapi.yaml');
+  assert.equal(res.statusCode, 200);
+  assert.match(String(res.headers['content-type']), /^text\/yaml/);
+  assert.equal(res.body, readFileSync(new URL('../openapi.yaml', import.meta.url), 'utf8'));
+});
+
+test('documentation API is authenticated, allowlisted and serves local and upstream OpenAPI documents', async () => {
+  assert.equal((await t.app.inject('/api/docs/services')).statusCode, 401);
+  const { cookie } = await signIn(t);
+  const headers = { cookie };
+  const list = await t.app.inject({ url: '/api/docs/services', headers });
+  assert.equal(list.statusCode, 200);
+  assert.equal(list.json().items.length, 13);
+  assert.deepEqual(list.json().items[0], { id: 'console', type: 'console', label: 'Console' });
+  assert.equal(list.body.includes('apiKey'), false, 'registry secrets are never serialized');
+
+  const local = await t.app.inject({ url: '/api/docs/services/console/openapi', headers });
+  assert.equal(local.statusCode, 200);
+  assert.equal(local.json().document.info.title, 'console');
+  const remote = await t.app.inject({ url: '/api/docs/services/notify/openapi', headers });
+  assert.equal(remote.statusCode, 200);
+  assert.equal(remote.json().document.info.title, 'fake');
+  assert.equal(seen.at(-1)?.headers.authorization, undefined, 'public spec fetch sends no API key');
+  assert.equal((await t.app.inject({ url: '/api/docs/services/not-real/openapi', headers })).json().error.code, 'DOCS_UNKNOWN_SERVICE');
 });
 
 test('static app: index, SPA fallback, hashed assets immutable, API 404 stays JSON', async () => {

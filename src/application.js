@@ -9,6 +9,7 @@ import { Maintenance } from './maintenance.js';
 import { RateLimiter } from './rate-limiter.js';
 import { ServiceClients } from './services/clients.js';
 import { ServiceRegistry } from './services/registry.js';
+import { OpenApiDocuments } from './services/openapi-documents.js';
 import { AdminStore } from './store/admin-store.js';
 import { AuditStore } from './store/audit-store.js';
 import { AuditEvents } from './domain/audit-events.js';
@@ -47,7 +48,8 @@ export class Application {
     });
     this.adminService = new AdminService({ admins: this.admins, sessions: this.sessions, audit: this.audit, hasher: this.hasher });
     this.clients = new ServiceClients(registry, { timeoutMs: config.serviceTimeoutMs });
-    this.api = new ConsoleApi({ config, auth: this.auth, adminService: this.adminService, audit: this.audit, clients: this.clients, db: this.db, limiter: new RateLimiter(), version: this.version });
+    this.docs = new OpenApiDocuments(this.clients);
+    this.api = new ConsoleApi({ config, auth: this.auth, adminService: this.adminService, audit: this.audit, clients: this.clients, docs: this.docs, db: this.db, limiter: new RateLimiter(), version: this.version });
     /** @type {import('fastify').FastifyInstance|null} */
     this.app = null;
     /** @type {Maintenance|null} */

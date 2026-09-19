@@ -40,6 +40,7 @@
   import Admins from './pages/Admins.svelte';
   import Account from './pages/Account.svelte';
   import About from './pages/About.svelte';
+  import ApiDocs from './pages/ApiDocs.svelte';
   import NotFound from './pages/NotFound.svelte';
 
   const match = $derived(router.match);
@@ -102,6 +103,7 @@
       {:else if match.pattern === '/geo/:sid/collections/:id'}<CollectionDetail sid={match.params.sid} id={match.params.id} />
       {:else if match.pattern === '/audit'}<Audit />
       {:else if match.pattern === '/admins'}<Admins />
+      {:else if match.pattern === '/docs'}<ApiDocs />
       {:else if match.pattern === '/account'}<Account />
       {:else if match.pattern === '/about'}<About />
       {:else}<NotFound />

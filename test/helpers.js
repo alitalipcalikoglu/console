@@ -58,6 +58,7 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   const { ConsoleApi } = await import('../src/http/console-api.js');
   const { RateLimiter } = await import('../src/rate-limiter.js');
   const { ServiceClients } = await import('../src/services/clients.js');
+  const { OpenApiDocuments } = await import('../src/services/openapi-documents.js');
   const { AdminStore } = await import('../src/store/admin-store.js');
   const { AuditStore } = await import('../src/store/audit-store.js');
   const { SessionStore } = await import('../src/store/session-store.js');
@@ -77,11 +78,12 @@ export async function testConsole({ urls, env = {}, publicDir } = {}) {
   });
   const adminService = new AdminService({ admins, sessions, audit, hasher, now: () => clock.now });
   const clients = new ServiceClients(testRegistry(urls), { timeoutMs: 3000 });
-  const api = new ConsoleApi({ config, auth, adminService, audit, clients, db, limiter: new RateLimiter(), version: '1.0.0', logger: silentLog });
+  const docs = new OpenApiDocuments(clients);
+  const api = new ConsoleApi({ config, auth, adminService, audit, clients, docs, db, limiter: new RateLimiter(), version: '1.0.0', logger: silentLog });
   const app = await api.build();
   api.registerUpload(app);
   await app.ready();
-  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, clock, keyring };
+  return { app, config, db, admins, sessions, audit, hasher, auth, adminService, clients, docs, clock, keyring };
 }
 
 export const ADMIN_PASSWORD = 'a very long console password';
