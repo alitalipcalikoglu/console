@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console
-  version: 1.0.0
+  version: 1.1.0
   description: |-
     Independent admin console for the atc-web platform: its own accounts, sessions, TOTP and
     activity log, plus a hand-written, typed pass-through layer over every other service in the
