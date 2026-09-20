@@ -16,11 +16,17 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch --env-file=.env src/index.js",
-    "dev:ui": "vite",
-    "build": "vite build",
+    "dev:ui": "vite --config vite.legacy.config.js",
+    "build": "vite build --config vite.legacy.config.js",
+    "kit:dev": "vite dev",
+    "kit:sync": "svelte-kit sync",
+    "kit:check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "kit:build": "vite build",
+    "kit:preview": "vite preview",
+    "kit:smoke": "npm run kit:build && node scripts/verify-sveltekit-build.mjs",
     "admin": "node --disable-warning=ExperimentalWarning --env-file=.env scripts/admin.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
-    "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./jsconfig.json"
+    "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./jsconfig.json && npm run kit:check"
   },
   "dependencies": {
     "@atc-web/service-core": "github:alitalipcalikoglu/service-core#v1.12.0",
@@ -30,6 +36,8 @@
     "yaml": "2.9.1"
   },
   "devDependencies": {
+    "@sveltejs/adapter-node": "5.5.7",
+    "@sveltejs/kit": "2.70.3",
     "@sveltejs/vite-plugin-svelte": "7.3.0",
     "@types/node": "22.20.3",
     "svelte": "5.57.0",

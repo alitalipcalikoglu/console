@@ -4,3 +4,5 @@ data/
 public/
 services.json
 .DS_Store
+.svelte-kit/
+/build/

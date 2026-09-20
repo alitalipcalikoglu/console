@@ -2,7 +2,7 @@
 # Stage 1: build the Svelte app (dev dependencies only live here).
 FROM node:22-alpine AS ui
 WORKDIR /app
-COPY package.json package-lock.json vite.config.js svelte.config.js ./
+COPY package.json package-lock.json vite.legacy.config.js svelte.config.js ./
 COPY ui ./ui
 RUN npm ci && npm run build
 

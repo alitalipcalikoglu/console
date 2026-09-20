@@ -19,6 +19,15 @@ npm start
 
 Local development with hot reload: `npm run dev` (API on 3004) and `npm run dev:ui` (Vite on 5173, proxies `/api`). Set `COOKIE_SECURE=false` for plain-http development.
 
+### SvelteKit migration foundation
+
+The M1 foundation lives in canonical `src/routes/` and builds with adapter-node, but it is not the
+production runtime yet. `npm start`, `npm run dev`, and `npm run build` continue to operate the
+legacy Fastify + Vite SPA without mounting either framework inside the other. During the staged
+migration, use `npm run kit:dev`, `npm run kit:check`, `npm run kit:build`, and `npm run kit:smoke`
+to exercise the independent SvelteKit foundation. `vite.legacy.config.js` is transitional and will
+disappear with the old `ui/` application; the canonical `vite.config.ts` belongs to SvelteKit.
+
 Production with PM2:
 
 ```bash
