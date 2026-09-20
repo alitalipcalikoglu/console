@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -74,13 +75,53 @@ function fastifyOperations() {
   return operations;
 }
 
-test('migration gate: current Fastify source exactly matches canonical OpenAPI', () => {
+/** Derive filesystem paths and exported HTTP methods from actual SvelteKit endpoint source. */
+function svelteKitOperations() {
+  const routesRoot = fileURLToPath(new URL('../../src/routes/', import.meta.url));
+  /** @type {string[]} */
+  const operations = [];
+  /** @param {string} directory */
+  function walk(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path);
+      if (!entry.isFile() || entry.name !== '+server.ts') continue;
+      const source = readFileSync(path, 'utf8');
+      const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+      const route = `/${relative(routesRoot, directory).split(sep).filter((part) => !/^\(.*\)$/.test(part)).join('/')}`
+        .replace(/\[([^\]]+)\]/g, '{$1}');
+      for (const statement of tree.statements) {
+        if (!ts.isVariableStatement(statement) || !statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          if (!ts.isIdentifier(declaration.name)) continue;
+          const method = declaration.name.text.toLowerCase();
+          if (HTTP_METHODS.has(method)) operations.push(`${method.toUpperCase()} ${route}`);
+        }
+      }
+    }
+  }
+  walk(routesRoot);
+  return operations;
+}
+
+test('migration gate: derived legacy and SvelteKit operations cover canonical OpenAPI', () => {
   const canonical = openApiOperations();
-  const implementation = fastifyOperations();
-  const duplicate = implementation.filter((value, index) => implementation.indexOf(value) !== index);
-  assert.deepEqual(duplicate, [], `duplicate Fastify operations: ${duplicate.join(', ')}`);
+  const legacy = fastifyOperations();
+  const migrated = svelteKitOperations();
+  const legacyDuplicate = legacy.filter((value, index) => legacy.indexOf(value) !== index);
+  const migratedDuplicate = migrated.filter((value, index) => migrated.indexOf(value) !== index);
+  assert.deepEqual(legacyDuplicate, [], `duplicate Fastify operations: ${legacyDuplicate.join(', ')}`);
+  assert.deepEqual(migratedDuplicate, [], `duplicate SvelteKit operations: ${migratedDuplicate.join(', ')}`);
   assert.equal(canonical.paths, 122);
   assert.equal(canonical.operations.length, 156);
+  assert.equal(migrated.length, 4);
+  assert.ok(migrated.every((operation) => canonical.operations.includes(operation)));
+  // The unchanged public production command still needs its compatibility copies until cutover.
+  // For migration ownership, actual SvelteKit endpoint source wins over the derived legacy set.
+  const unmigratedLegacy = legacy.filter((operation) => !migrated.includes(operation));
+  const implementation = [...unmigratedLegacy, ...migrated];
+  assert.equal(unmigratedLegacy.length, 152);
+  assert.equal(new Set(implementation).size, implementation.length);
   assert.equal(implementation.length, 156);
-  assert.deepEqual([...implementation].sort(), [...canonical.operations].sort());
+  assert.deepEqual(implementation.sort(), [...canonical.operations].sort());
 });

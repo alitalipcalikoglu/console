@@ -28,6 +28,13 @@ migration, use `npm run kit:dev`, `npm run kit:check`, `npm run kit:build`, and 
 to exercise the independent SvelteKit foundation. `vite.legacy.config.js` is transitional and will
 disappear with the old `ui/` application; the canonical `vite.config.ts` belongs to SvelteKit.
 
+M2 adds `npm run kit:runtime` as the explicit adapter-node migration runtime. It owns the shared
+configuration, SQLite connection, maintenance timer, graceful process lifecycle, and the four
+filesystem-routed operational endpoints (`/health`, `/ready`, `/v1/info`, `/openapi.yaml`). Run
+`npm run kit:runtime:smoke` for HTTP, native HTTPS, IPC readiness, shutdown and endpoint parity
+checks. The public `start` and `build` commands remain on the legacy implementation until the
+remaining API and UI routes have migrated; the two runtimes are never mounted or proxied together.
+
 Production with PM2:
 
 ```bash
