@@ -17,10 +17,11 @@ export class MediaClient extends ServiceClient {
 
   /**
    * Stream an upload through to media.
-   * @param {NodeJS.ReadableStream} stream
+   * @param {NodeJS.ReadableStream|BodyInit|null} stream
    * @param {{ name?: string|null, visibility?: string, contentType?: string, contentLength?: string }} o
+   * @param {AbortSignal} [signal]
    */
-  upload(stream, o) {
+  upload(stream, o, signal) {
     const p = new URLSearchParams();
     if (o.visibility) p.set('visibility', o.visibility);
     /** @type {Record<string, string>} */
@@ -28,7 +29,7 @@ export class MediaClient extends ServiceClient {
     if (o.contentType) headers['content-type'] = o.contentType;
     if (o.contentLength) headers['content-length'] = o.contentLength;
     if (o.name) headers['x-file-name'] = encodeURIComponent(o.name);
-    return this.json('PUT', `/v1/files?${p}`, { raw: /** @type {any} */ (stream), headers, timeoutMs: 300_000 });
+    return this.json('PUT', `/v1/files?${p}`, { raw: /** @type {any} */ (stream), headers, timeoutMs: 300_000, signal });
   }
 
   /** @param {string} id @param {{ name?: string, visibility?: 'public'|'private' }} patch */

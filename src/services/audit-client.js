@@ -2,6 +2,8 @@ import { PrometheusText, ServiceClient } from './client.js';
 
 /** Typed wrapper over the audit service (read role: the console never writes events there). */
 export class AuditClient extends ServiceClient {
+  static EXPORT_TIMEOUT_MS = 600_000;
+
   /** Query parameters forwarded verbatim to the audit service's filters. */
   static FILTERS = /** @type {const} */ (['source', 'action', 'actionPrefix', 'outcome', 'actorType', 'actorId', 'targetType', 'targetId', 'ip', 'requestId', 'from', 'to']);
 
@@ -49,7 +51,7 @@ export class AuditClient extends ServiceClient {
   export(q, format) {
     const p = AuditClient.params(q, AuditClient.FILTERS);
     p.set('format', format);
-    return this.request('GET', `/v1/events/export?${p}`, { timeoutMs: 600_000 });
+    return this.request('GET', `/v1/events/export?${p}`, { timeoutMs: AuditClient.EXPORT_TIMEOUT_MS });
   }
 
   async summary() {

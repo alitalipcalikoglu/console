@@ -68,7 +68,7 @@ export class ServiceClients {
     // Adapter-node may place the route-side constructor and the composition-root constructor in
     // separate chunks, so class identity is not a safe service-type discriminator there. The
     // registry's validated fixed type remains the authority in both runtimes.
-    const expected = CLIENT_TYPES.get(type.name);
+    const expected = CLIENT_TYPES.get(type.name.replace(/\$\d+$/, ''));
     if (!c || !expected || c.def.type !== expected) throw new ServiceError(`no ${type.name.replace('Client', '').toLowerCase()} service "${id}"`, { statusCode: 404, code: 'UNKNOWN_SERVICE' });
     return /** @type {T} */ (c);
   }

@@ -22,6 +22,7 @@ export class Schemas {
   static serviceParams = { type: 'object', properties: { sid: Schemas.sid }, required: ['sid'] };
   static serviceIdParams = { type: 'object', properties: { sid: Schemas.sid, id: Schemas.id }, required: ['sid', 'id'] };
   static serviceIdSubParams = { type: 'object', properties: { sid: Schemas.sid, id: Schemas.id, sub: Schemas.id }, required: ['sid', 'id', 'sub'] };
+  static mediaUploadQuery = { type: 'object', additionalProperties: false, properties: { visibility: { type: 'string', enum: ['public', 'private'] }, name: { type: 'string', maxLength: 255 } } };
   static auditQuery = {
     type: 'object', additionalProperties: false,
     properties: {

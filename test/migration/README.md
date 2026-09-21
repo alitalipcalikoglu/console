@@ -8,10 +8,11 @@ source. The route parity test derives both sides instead of carrying a third rou
 New acceptance tests use a real TCP listener and HTTP requests. When SvelteKit replaces Fastify,
 the server adapter in `helpers.js` may change while the behavioral assertions remain.
 
-M4 keeps the parity gate derivational: the filesystem supplies 152 owned operations and the
-legacy source supplies only the four remaining migration-owned special-I/O operations (media raw
-upload, media bytes, audit export and QR PNG). `scripts/verify-sveltekit-m4.mjs` exercises the real
-adapter-node build with deterministic local downstream services; it does not call Fastify.
+M5 completes derivational implementation ownership: the filesystem supplies all 156 operations
+and legacy Fastify supplies zero migration-owned operations, while its compatibility copies remain
+until M8. `scripts/verify-sveltekit-m5.mjs` exercises raw upload backpressure, bounded streaming,
+binary response filtering and stream cancellation against the real adapter-node build; it does
+not call Fastify.
 
 Intentional migration deltas, which must not be mistaken for accidental drift:
 

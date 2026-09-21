@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { handler } from './build/handler.js';
 import { ConfigError } from './src/config.js';
+import { CONSOLE_UPLOAD_LIMIT_BYTES } from './src/services/upload-stream.js';
 import { Runtime } from './src/lib/server/runtime.js';
 
 const FORCE_EXIT_MS = 30_000;
+process.env.BODY_SIZE_LIMIT ??= String(CONSOLE_UPLOAD_LIMIT_BYTES);
+const { handler } = await import('./build/handler.js');
 
 function listen(server, port, host) {
   return new Promise((resolve, reject) => {

@@ -11,3 +11,4 @@ export { SchedulerClient } from '../../services/scheduler-client.js';
 export { SearchClient } from '../../services/search-client.js';
 export { ShortlinkClient } from '../../services/shortlink-client.js';
 export { WebhookOutClient } from '../../services/webhook-out-client.js';
+export { ServiceError } from '../../services/client.js';

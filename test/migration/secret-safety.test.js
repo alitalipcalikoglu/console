@@ -30,7 +30,7 @@ test('M3 locals expose only safe request, principal and session summaries', () =
   }
 });
 
-test('M4 hook keeps body parsing out of the global lifecycle and protects API mutations except authentication entry points', () => {
+test('M5 hook keeps body parsing out of the global lifecycle and protects API mutations except authentication entry points', () => {
   const hook = readFileSync(new URL('../../src/hooks.server.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(hook, /arrayBuffer\(|request\.json\(|request\.body/);
   assert.match(hook, /mutation/);
@@ -38,4 +38,12 @@ test('M4 hook keeps body parsing out of the global lifecycle and protects API mu
   assert.match(hook, /CSRF_EXEMPT/);
   assert.match(hook, /'\/api\/session\/login'/);
   assert.match(hook, /'\/api\/session\/totp'/);
+});
+
+test('M5 upload path forwards a bounded stream without a read-all operation', () => {
+  const route = readFileSync(new URL('../../src/routes/api/services/[sid]/media/files/+server.ts', import.meta.url), 'utf8');
+  const stream = readFileSync(new URL('../../src/services/upload-stream.js', import.meta.url), 'utf8');
+  assert.match(route, /UploadStream\.limit\(context\.event\.request\.body\)/);
+  assert.match(stream, /source\.getReader\(\)/);
+  assert.doesNotMatch(`${route}\n${stream}`, /request\.(?:arrayBuffer|text|json)\(|Buffer\.concat\(/);
 });

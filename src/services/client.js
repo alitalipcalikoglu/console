@@ -75,7 +75,7 @@ export class ServiceClient {
   /**
    * @param {string} method
    * @param {string} path
-   * @param {{ body?: unknown, raw?: BodyInit, headers?: Record<string, string>, auth?: 'apiKey'|'metrics'|'none', timeoutMs?: number, distinguishTimeout?: boolean }} [o]
+   * @param {{ body?: unknown, raw?: BodyInit|null, headers?: Record<string, string>, auth?: 'apiKey'|'metrics'|'none', timeoutMs?: number, distinguishTimeout?: boolean, signal?: AbortSignal }} [o]
    * @returns {Promise<Response>}
    */
   async request(method, path, o = {}) {
@@ -91,9 +91,11 @@ export class ServiceClient {
       body = JSON.stringify(o.body);
     }
     try {
+      const timeoutSignal = AbortSignal.timeout(o.timeoutMs ?? this.timeoutMs);
+      const signal = o.signal ? AbortSignal.any([o.signal, timeoutSignal]) : timeoutSignal;
       return await this.fetch(`${this.def.url}${path}`, {
-        method, headers, body, redirect: 'error', signal: AbortSignal.timeout(o.timeoutMs ?? this.timeoutMs),
-        ...(body && typeof body === 'object' && 'pipe' in /** @type {any} */ (body) ? { duplex: 'half' } : {}),
+        method, headers, body, redirect: 'error', signal,
+        ...(body && typeof body === 'object' && ('pipe' in /** @type {any} */ (body) || 'getReader' in /** @type {any} */ (body)) ? { duplex: 'half' } : {}),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
