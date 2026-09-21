@@ -29,6 +29,7 @@
     "kit:auth:smoke": "npm run kit:build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-auth.mjs",
     "kit:m4:smoke": "npm run kit:build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-m4.mjs",
     "kit:m5:smoke": "npm run kit:build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-m5.mjs",
+    "kit:m6:smoke": "npm run kit:build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-m6.mjs",
     "admin": "node --disable-warning=ExperimentalWarning --env-file=.env scripts/admin.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
     "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./jsconfig.json && npm run kit:check"

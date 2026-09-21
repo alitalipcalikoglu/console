@@ -14,6 +14,15 @@ until M8. `scripts/verify-sveltekit-m5.mjs` exercises raw upload backpressure, b
 binary response filtering and stream cancellation against the real adapter-node build; it does
 not call Fastify.
 
+M6 makes the SvelteKit filesystem the canonical browser router for all 34 frozen URL patterns.
+The authenticated route-group layout performs the server-known session decision before rendering,
+while operational data loading and polling still begin after hydration. The derivational route
+test maps the frozen M0 fixture to real `src/routes/**/+page.svelte` files, and
+`scripts/verify-sveltekit-m6.mjs` checks all 34 direct loads plus role, redirect, 404, logout and
+M5 browser-integration contracts against adapter-node. The unchanged `ui/` application, its
+custom router and SPA entry remain compatibility evidence only and are scheduled for M8 removal;
+canonical SvelteKit code does not import them or require their fallback/runtime.
+
 Intentional migration deltas, which must not be mistaken for accidental drift:
 
 - M0 deliberately retains proof that legacy Fastify logout accepts no CSRF header. M3's native

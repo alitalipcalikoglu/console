@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { after, before, test } from 'node:test';
 import ts from 'typescript';
 import { startConsole } from './helpers.js';
@@ -23,6 +23,19 @@ function currentRouterPatterns() {
   return routes;
 }
 
+function svelteKitPagePatterns() {
+  const files = readdirSync(new URL('../../src/routes/', import.meta.url), { recursive: true })
+    .map(String)
+    .filter((path) => path.endsWith('+page.svelte'));
+  return files.map((file) => {
+    const directories = file.split('/').slice(0, -1)
+      .filter((segment) => !/^\(.+\)$/.test(segment))
+      .map((segment) => /^\[([^\]]+)\]$/.exec(segment)?.[1])
+      .map((parameter, index) => parameter ? `:${parameter}` : file.split('/').slice(0, -1).filter((segment) => !/^\(.+\)$/.test(segment))[index]);
+    return directories.length ? `/${directories.join('/')}` : '/';
+  });
+}
+
 /** @type {Awaited<ReturnType<typeof startConsole>>} */ let consoleApp;
 before(async () => { consoleApp = await startConsole(); });
 after(async () => consoleApp.close());
@@ -32,6 +45,12 @@ test('frontend oracle: the current router exposes exactly the frozen 34 browser 
   assert.ok(actual);
   assert.equal(actual.length, 34);
   assert.deepEqual(actual, expectedRoutes);
+});
+
+test('M6 gate: SvelteKit filesystem pages own exactly the frozen 34 browser patterns', () => {
+  const actual = svelteKitPagePatterns();
+  assert.equal(actual.length, 34);
+  assert.deepEqual(actual.sort(), [...expectedRoutes].sort());
 });
 
 test('frontend oracle: all 34 representative deep links resolve through the current SPA', async () => {
@@ -57,14 +76,25 @@ test('frontend oracle: unknown non-file URLs use SPA fallback while API/file URL
   assert.deepEqual(await response.json(), { error: { code: 'NOT_FOUND', message: 'file not found' } });
 });
 
-test('frontend oracle: login/auth routing is client-side today and API access remains server-enforced', async () => {
-  const appSource = readFileSync(new URL('../../ui/src/App.svelte', import.meta.url), 'utf8');
-  assert.match(appSource, /!signedIn && router\.path !== '\/login'.*router\.go\('\/login'/s);
-  assert.match(appSource, /signedIn && router\.path === '\/login'.*router\.go\('\/'/s);
+test('frontend oracle: legacy routing remains compatibility source while M6 guards are server-side', async () => {
+  const appLayout = readFileSync(new URL('../../src/routes/(app)/+layout.server.ts', import.meta.url), 'utf8');
+  const login = readFileSync(new URL('../../src/routes/(public)/login/+page.server.ts', import.meta.url), 'utf8');
+  assert.match(appLayout, /redirect\(303, '\/login'\)/);
+  assert.match(login, /redirect\(303, '\/'\)/);
   const deepLink = await fetch(`${consoleApp.origin}/admins`);
-  assert.equal(deepLink.status, 200, 'SSR does not exist yet; the static shell is delivered before the client guard');
+  assert.equal(deepLink.status, 200, 'legacy production compatibility still serves the SPA until M8');
   const protectedApi = await fetch(`${consoleApp.origin}/api/admins`);
   assert.equal(protectedApi.status, 401);
+});
+
+test('M6 canonical source has no custom router, App switch or SPA fallback dependency', () => {
+  const source = readdirSync(new URL('../../src/', import.meta.url), { recursive: true })
+    .map(String)
+    .filter((path) => /\.(?:svelte|js|ts)$/.test(path))
+    .map((path) => readFileSync(new URL(`../../src/${path}`, import.meta.url), 'utf8'))
+    .join('\n');
+  assert.doesNotMatch(source, /router\.svelte|pushState|popstate|ui\/src\/App\.svelte/);
+  assert.doesNotMatch(source, /export\s+const\s+ssr\s*=\s*false/);
 });
 
 test('PWA oracle: manifest, registration, cache boundary, offline fallback and update protocol', () => {
