@@ -8,10 +8,11 @@ source. The route parity test derives both sides instead of carrying a third rou
 New acceptance tests use a real TCP listener and HTTP requests. When SvelteKit replaces Fastify,
 the server adapter in `helpers.js` may change while the behavioral assertions remain.
 
-Intentional future deltas, which must not be mistaken for accidental drift:
+Intentional migration deltas, which must not be mistaken for accidental drift:
 
-- M3 will require `x-console-request: 1` when an existing authenticated session is logged out.
-  Current logout accepts the request without that header; M0 deliberately proves that behavior.
+- M0 deliberately retains proof that legacy Fastify logout accepts no CSRF header. M3's native
+  SvelteKit owner now requires `x-console-request: 1` when an authenticated session is logged out;
+  `scripts/verify-sveltekit-auth.mjs` proves the corrected behavior and both pre-session exceptions.
 - SvelteKit will SSR application routes. HTML bytes and the current `index.html` SPA fallback are
   not compatibility contracts; status, access outcome and visible route identity are.
 - The current PWA caches the SPA shell, including `/` and `/index.html`. The future service worker

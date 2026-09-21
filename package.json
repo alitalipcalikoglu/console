@@ -26,6 +26,7 @@
     "kit:smoke": "npm run kit:build && node scripts/verify-sveltekit-build.mjs",
     "kit:runtime": "node --disable-warning=ExperimentalWarning server.mjs",
     "kit:runtime:smoke": "npm run kit:build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-runtime.mjs",
+    "kit:auth:smoke": "npm run kit:build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-auth.mjs",
     "admin": "node --disable-warning=ExperimentalWarning --env-file=.env scripts/admin.js",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
     "typecheck": "tsc -p jsconfig.json && svelte-check --workspace ui --tsconfig ./jsconfig.json && npm run kit:check"
@@ -33,6 +34,8 @@
   "dependencies": {
     "@atc-web/service-core": "github:alitalipcalikoglu/service-core#v1.12.0",
     "@fastify/static": "10.1.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "fastify": "5.12.4",
     "swagger-ui-dist": "5.33.0",
     "yaml": "2.9.1"

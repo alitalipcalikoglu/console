@@ -117,7 +117,7 @@ test('auth oracle: expiry and explicit revocation invalidate otherwise valid coo
   }
 });
 
-test('CSRF oracle: login and current logout are exempt; authenticated mutations are not', async () => {
+test('legacy CSRF oracle: login and logout are exempt before the deliberate M3 security correction', async () => {
   const signedIn = await login('admin@migration.test');
   const logout = await fetch(`${consoleApp.origin}/api/session/logout`, { method: 'POST', headers: { cookie: signedIn.cookie } });
   assert.equal(logout.status, 204, 'KNOWN CURRENT BEHAVIOR — INTENTIONAL MIGRATION DELTA IN M3');

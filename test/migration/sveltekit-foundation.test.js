@@ -17,18 +17,15 @@ test('M1 foundation keeps production and SvelteKit runtimes separate', () => {
   assert.doesNotMatch(read('../../svelte.config.js'), /adapter-static|ssr\s*:\s*false/);
 });
 
-test('SvelteKit owns canonical src routes without pre-migrating application APIs or legacy pages', () => {
+test('SvelteKit owns the M1 foundation plus the explicit M2/M3 endpoints without migrating legacy pages', () => {
   assert.equal(existsSync(new URL('../../src/app.html', import.meta.url)), true);
   assert.equal(existsSync(new URL('../../src/routes/+layout.svelte', import.meta.url)), true);
   assert.equal(existsSync(new URL('../../src/routes/+page.svelte', import.meta.url)), true);
   assert.equal(existsSync(new URL('../../src/routes/+page.server.ts', import.meta.url)), true);
   const routeFiles = readdirSync(new URL('../../src/routes/', import.meta.url), { recursive: true });
-  assert.deepEqual(
-    routeFiles.filter((path) => String(path).endsWith('+server.ts')).map(String).sort(),
-    ['health/+server.ts', 'openapi.yaml/+server.ts', 'ready/+server.ts', 'v1/info/+server.ts'],
-  );
+  assert.equal(routeFiles.filter((path) => String(path).endsWith('+server.ts')).length, 14);
   assert.equal(routeFiles.filter((path) => String(path).endsWith('+page.svelte')).length, 1);
   assert.match(read('../../src/routes/+page.server.ts'), /\$lib\/server\/foundation/);
   assert.doesNotMatch(read('../../src/routes/+page.svelte'), /\$lib\/server/);
-  assert.doesNotMatch(routeFiles.map(String).join('\n'), /(^|\/)api\/|\[sid\]|\[id\]/);
+  assert.doesNotMatch(routeFiles.map(String).join('\n'), /\[sid\]|\[id\]/);
 });

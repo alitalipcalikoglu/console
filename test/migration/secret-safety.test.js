@@ -19,3 +19,28 @@ test('fixture safety oracle: migration fixtures contain no credentials or machin
     for (const pattern of forbidden) assert.doesNotMatch(contents, pattern, `${name} must remain safe to commit`);
   }
 });
+
+test('M3 locals expose only safe request, principal and session summaries', () => {
+  const locals = readFileSync(new URL('../../src/app.d.ts', import.meta.url), 'utf8');
+  for (const name of ['password', 'password_hash', 'token_hash', 'totp_secret', 'apiKey', 'privateKey', 'encryptionKey']) {
+    assert.doesNotMatch(locals, new RegExp(name, 'i'));
+  }
+  for (const name of ['requestId', 'trace', 'clientIp', 'principal', 'session', 'role', 'totpPending']) {
+    assert.match(locals, new RegExp(`\\b${name}\\b`));
+  }
+});
+
+test('M3 hook keeps body parsing out of the global lifecycle and names the exact CSRF boundary', () => {
+  const hook = readFileSync(new URL('../../src/hooks.server.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(hook, /arrayBuffer\(|request\.json\(|request\.body/);
+  const protectedRoutes = [
+    '/api/session/logout',
+    '/api/me/sessions/logout-others',
+    '/api/me/password',
+    '/api/me/totp/start',
+    '/api/me/totp/confirm',
+    '/api/me/totp/disable',
+  ];
+  for (const route of protectedRoutes) assert.match(hook, new RegExp(route.replaceAll('/', '\\/')));
+  assert.doesNotMatch(hook, /['"]\/api\/session\/(?:login|totp)['"]/);
+});

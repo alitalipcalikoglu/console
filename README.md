@@ -4,7 +4,7 @@ One installable web app to watch and operate the atc-web services: notify, auth,
 
 The console depends on nothing else to run: its own administrator accounts, sessions, two-factor authentication and audit log live in its own SQLite database. Services are reached over HTTP with dedicated API keys; a service being down shows up as a red card, not as a broken console.
 
-Runtime dependencies include `fastify`, `@fastify/static` and `yaml`; the locally bundled API reference uses `swagger-ui-dist`. Build-time only: `svelte`, `vite`. Storage via `node:sqlite` (Node 22.13+).
+Runtime dependencies include `fastify`, `@fastify/static`, `yaml`, `ajv` and `ajv-formats`; the locally bundled API reference uses `swagger-ui-dist`. Build-time only: `svelte`, `vite`. Storage via `node:sqlite` (Node 22.13+).
 
 ## Run
 
@@ -34,6 +34,14 @@ filesystem-routed operational endpoints (`/health`, `/ready`, `/v1/info`, `/open
 `npm run kit:runtime:smoke` for HTTP, native HTTPS, IPC readiness, shutdown and endpoint parity
 checks. The public `start` and `build` commands remain on the legacy implementation until the
 remaining API and UI routes have migrated; the two runtimes are never mounted or proxied together.
+
+M3 adds the native SvelteKit request lifecycle and 10 explicit auth/session endpoints under
+`src/routes/api/`. `src/hooks.server.ts` owns trace context, trusted client IP, safe request locals,
+session resolution, common security headers and the auditable CSRF route boundary. Run
+`npm run kit:auth:smoke` for black-box auth, TOTP, session, cookie, validation, trace and CSRF
+coverage. Authenticated logout now requires `X-Console-Request: 1`; login and pending-session TOTP
+remain the only pre-session exceptions. Legacy Fastify retains mutually exclusive compatibility
+copies until final cutover.
 
 Production with PM2:
 

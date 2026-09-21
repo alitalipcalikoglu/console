@@ -47,6 +47,11 @@ export class SessionStore {
     return /** @type {SessionRow|undefined} */ (this.stmt.byToken.get(OpaqueToken.hash(token)));
   }
 
+  /** @param {string} id */
+  byId(id) {
+    return /** @type {SessionRow|undefined} */ (this.stmt.byId.get(id));
+  }
+
   /** @param {string} id @param {number} [now] */
   touch(id, now = Date.now()) {
     this.stmt.touch.run(now, id);

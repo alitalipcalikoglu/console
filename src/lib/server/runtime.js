@@ -2,9 +2,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ConsoleLogger } from '@atc-web/service-core/log';
 import { Config } from '../../config.js';
+import { PasswordHasher } from '../../crypto/password.js';
 import { TotpKeyring } from '../../crypto/totp-keyring.js';
 import { Database } from '../../db.js';
+import { ConsoleAuth } from '../../domain/console-auth.js';
 import { Maintenance } from '../../maintenance.js';
+import { RateLimiter } from '../../rate-limiter.js';
 import { AdminStore } from '../../store/admin-store.js';
 import { AuditStore } from '../../store/audit-store.js';
 import { SessionStore } from '../../store/session-store.js';
@@ -42,8 +45,27 @@ export class ConsoleRuntime {
         ? new TotpKeyring({ current: config.secretsKey, previous: config.secretsPreviousKey })
         : null;
       AdminStore.reseal(this.db, keyring);
+      this.admins = new AdminStore(this.db, keyring);
       this.sessions = new SessionStore(this.db);
       this.audit = new AuditStore(this.db);
+      this.hasher = new PasswordHasher({ logN: config.scryptLogN });
+      this.auth = new ConsoleAuth({
+        admins: this.admins,
+        sessions: this.sessions,
+        audit: this.audit,
+        hasher: this.hasher,
+        keyring,
+        strictSealing: AdminStore.hasFullySealed(this.db),
+        log: this.log.child({ component: 'auth' }),
+        options: {
+          sessionTtlMs: config.sessionTtlMin * 60_000,
+          sessionIdleMs: config.sessionIdleMin * 60_000,
+          loginMaxFailures: config.loginMaxFailures,
+          lockoutMs: config.loginLockoutMin * 60_000,
+          totpIssuer: config.totpIssuer,
+        },
+      });
+      this.limiter = new RateLimiter();
       this.maintenance = new Maintenance({
         sessions: this.sessions,
         audit: this.audit,

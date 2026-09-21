@@ -114,13 +114,13 @@ test('migration gate: derived legacy and SvelteKit operations cover canonical Op
   assert.deepEqual(migratedDuplicate, [], `duplicate SvelteKit operations: ${migratedDuplicate.join(', ')}`);
   assert.equal(canonical.paths, 122);
   assert.equal(canonical.operations.length, 156);
-  assert.equal(migrated.length, 4);
+  assert.equal(migrated.length, 14);
   assert.ok(migrated.every((operation) => canonical.operations.includes(operation)));
   // The unchanged public production command still needs its compatibility copies until cutover.
   // For migration ownership, actual SvelteKit endpoint source wins over the derived legacy set.
   const unmigratedLegacy = legacy.filter((operation) => !migrated.includes(operation));
   const implementation = [...unmigratedLegacy, ...migrated];
-  assert.equal(unmigratedLegacy.length, 152);
+  assert.equal(unmigratedLegacy.length, 142);
   assert.equal(new Set(implementation).size, implementation.length);
   assert.equal(implementation.length, 156);
   assert.deepEqual(implementation.sort(), [...canonical.operations].sort());
