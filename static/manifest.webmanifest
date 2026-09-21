@@ -1,0 +1,24 @@
+{
+  "name": "Console",
+  "short_name": "Console",
+  "description": "Admin console for notify, auth, media and gateway",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "tr",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Overview", "url": "/", "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }] },
+    { "name": "Audit log", "url": "/audit", "icons": [{ "src": "/icons/icon.svg", "sizes": "any" }] }
+  ]
+}

@@ -9,5 +9,5 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*.js", "src/**/*.d.ts", "test/**/*.js", "scripts/**/*.js"],
-  "exclude": ["node_modules", "ui", "public"]
+  "exclude": ["node_modules", "ui", "public", "src/lib/client"]
 }
