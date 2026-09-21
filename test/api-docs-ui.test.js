@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fetchDocServices, fetchOpenApi } from '../ui/src/lib/api-docs.js';
+import { fetchDocServices, fetchOpenApi } from '../src/lib/client/api-docs.js';
 
 test('API Docs UI boundary preserves a valid selection and falls back to the first allowlisted service', async () => {
   const get = async () => ({ items: [

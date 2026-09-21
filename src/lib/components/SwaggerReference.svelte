@@ -4,25 +4,37 @@
 
   /** @type {{ document: Record<string, unknown> }} */
   let { document } = $props();
-  /** @type {HTMLDivElement} */
-  let host;
+  let host = $state(/** @type {HTMLDivElement|null} */ (null));
+  let failed = $state(false);
+  let ready = $state(false);
 
   onMount(() => {
+    if (!host) return;
     let active = true;
     Promise.all([
       import('swagger-ui-dist/swagger-ui-es-bundle.js'),
       import('swagger-ui-dist/swagger-ui.css'),
     ]).then(([{ default: SwaggerUI }]) => {
-      if (active) SwaggerUI(swaggerOptions(document, host));
+      if (active) {
+        SwaggerUI(swaggerOptions(document, host));
+        ready = true;
+      }
+    }).catch(() => {
+      if (active) failed = true;
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      host?.replaceChildren();
+    };
   });
 </script>
 
-<div class="reference" bind:this={host}></div>
+{#if failed}<p class="reference-error" role="alert">Documentation renderer could not be loaded.</p>{/if}
+<div class="reference" bind:this={host} aria-busy={!failed && !ready}></div>
 
 <style>
   .reference { min-width: 0; overflow: hidden; }
+  .reference-error { margin: 20px; color: var(--danger); }
   .reference :global(.swagger-ui) { color: var(--text); font-family: inherit; }
   .reference :global(.swagger-ui .wrapper) { max-width: none; padding: 0 16px 20px; }
   .reference :global(.swagger-ui .info) { margin: 24px 0; }

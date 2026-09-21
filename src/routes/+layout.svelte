@@ -16,7 +16,7 @@
   onMount(() => {
     i18n.init();
     theme.init();
-    pwa.init();
+    return pwa.init();
   });
 </script>
 

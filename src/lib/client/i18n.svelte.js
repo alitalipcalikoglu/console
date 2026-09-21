@@ -6,6 +6,7 @@ export class I18n {
   /** @type {Record<'tr'|'en', Record<string, string>>} */
   static DICT = {
     tr: {
+      'common.copyFailed': 'Panoya kopyalanamadı.',
       'app.name': 'Console',
       'nav.overview': 'Genel bakış', 'nav.notify': 'Bildirim', 'nav.auth': 'Kimlik', 'nav.media': 'Medya', 'nav.gateway': 'Gateway', 'nav.audit': 'Konsol günlüğü', 'nav.admins': 'Yöneticiler', 'nav.account': 'Hesabım', 'nav.services': 'Servisler', 'nav.console': 'Konsol', 'nav.more': 'Diğer', 'nav.about': 'Hakkında', 'nav.docs': 'API Dokümanları',
       'docs.title': 'API Dokümanları', 'docs.desc': 'Çalışan servislerin kanonik OpenAPI 3.1 sözleşmeleri.', 'docs.service': 'Servis', 'docs.empty': 'Görüntülenecek API dokümanı yok.',
@@ -29,6 +30,7 @@ export class I18n {
       'poll.label': 'Otomatik yenile', 'poll.off': 'Kapalı', 'poll.saved': 'Otomatik yenileme ayarı kaydedildi.', 'poll.viewer': 'Bu ayarı yalnızca yöneticiler değiştirir.', 'poll.hint': 'Yalnızca bu sayfa açık ve sekme görünürken çalışır.', 'poll.inFlight': 'istek sürüyor', 'poll.slowed': 'etkin {s} s', 'poll.slowedHint': 'Servis yavaş yanıtlıyor (ort. {avg} s). Aralık, ortalamanın 1,3 katından az olmayacak şekilde otomatik uzatıldı.', 'poll.configured': 'Ayar', 'poll.effective': 'Etkin aralık', 'poll.avg': 'Ortalama', 'poll.last': 'Son', 'poll.runs': 'Çalışma', 'poll.errors': 'hata', 'poll.coalesced': 'birleştirilen', 'poll.next': 'sonraki {s} s', 'poll.paused': 'duraklatıldı', 'poll.lastTen': 'Son 10 isteğin süresi',
     },
     en: {
+      'common.copyFailed': 'Could not copy to the clipboard.',
       'app.name': 'Console',
       'nav.overview': 'Overview', 'nav.notify': 'Notify', 'nav.auth': 'Auth', 'nav.media': 'Media', 'nav.gateway': 'Gateway', 'nav.audit': 'Console log', 'nav.admins': 'Admins', 'nav.account': 'Account', 'nav.services': 'Services', 'nav.console': 'Console', 'nav.more': 'More', 'nav.about': 'About', 'nav.docs': 'API Docs',
       'docs.title': 'API Docs', 'docs.desc': 'Canonical OpenAPI 3.1 contracts from the running services.', 'docs.service': 'Service', 'docs.empty': 'There is no API document to display.',

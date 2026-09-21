@@ -9,9 +9,10 @@
     try {
       await navigator.clipboard.writeText(text);
       done = true;
+      toasts.ok(t('common.copied'));
       setTimeout(() => { done = false; }, 1500);
     } catch {
-      toasts.warn(text);
+      toasts.warn(t('common.copyFailed'));
     }
   }
 </script>

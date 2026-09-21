@@ -8,18 +8,27 @@
   import { toasts } from '$lib/client/toast.svelte.js';
 
   let { children }: { children: Snippet } = $props();
+  let updateToast = 0;
 
   onMount(() => {
     services.load().catch((error) => toasts.error(error));
     return () => services.reset();
   });
   $effect(() => {
+    if (updateToast) {
+      toasts.dismiss(updateToast);
+      updateToast = 0;
+    }
     if (pwa.updateReady) {
-      toasts.info(t('common.updateAvailable'), {
+      updateToast = toasts.info(t('common.updateAvailable'), {
         sticky: true,
         action: { label: t('common.reload'), run: () => pwa.applyUpdate() },
       });
     }
+    return () => {
+      if (updateToast) toasts.dismiss(updateToast);
+      updateToast = 0;
+    };
   });
 </script>
 
