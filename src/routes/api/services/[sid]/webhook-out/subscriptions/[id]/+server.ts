@@ -1,0 +1,6 @@
+import { Schemas, WebhookOutClient } from '$lib/server/m4-contract';
+import { jsonRoute, record } from '$lib/server/m4';
+export const GET = jsonRoute({ auth: 'session', params: Schemas.serviceIdParams, handler: async ({ runtime, params }) => { const client = runtime.clients.get(params.sid, WebhookOutClient); const [subscription, deliveries] = await Promise.all([client.getSubscription(params.id), client.deliveries({ subscription: params.id, limit: 20 })]); return { ...(subscription as object), deliveries: (deliveries as any).items, deliveriesNextBefore: (deliveries as any).nextBefore }; } });
+export const PATCH = jsonRoute({ auth: 'admin', params: Schemas.serviceIdParams, body: Schemas.webhookPatch, handler: async (context) => { const output = await context.runtime.clients.get(context.params.sid, WebhookOutClient).patchSubscription(context.params.id, context.body); record(context, 'webhook.subscription.update', context.params.id, { service: context.params.sid, patch: context.body }); return output; } });
+export const DELETE = jsonRoute({ auth: 'admin', params: Schemas.serviceIdParams, status: 204, handler: async (context) => { await context.runtime.clients.get(context.params.sid, WebhookOutClient).deleteSubscription(context.params.id); record(context, 'webhook.subscription.delete', context.params.id, { service: context.params.sid }); } });
+

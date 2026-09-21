@@ -12,6 +12,13 @@ import { ShortlinkClient } from './shortlink-client.js';
 import { WebhookOutClient } from './webhook-out-client.js';
 import { ServiceClient, ServiceError } from './client.js';
 
+const CLIENT_TYPES = new Map([
+  ['NotifyClient', 'notify'], ['AuthClient', 'auth'], ['MediaClient', 'media'],
+  ['GatewayClient', 'gateway'], ['AuditClient', 'audit'], ['ShortlinkClient', 'shortlink'],
+  ['FlagsClient', 'flags'], ['SchedulerClient', 'scheduler'], ['WebhookOutClient', 'webhook-out'],
+  ['SearchClient', 'search'], ['RateLimitClient', 'ratelimit'], ['GeoClient', 'geo'],
+]);
+
 /** @typedef {import('./registry.js').ServiceRegistry} ServiceRegistry */
 
 /** One client per configured service, by id and by type. */
@@ -58,8 +65,12 @@ export class ServiceClients {
    */
   get(id, type) {
     const c = this.clients.get(id);
-    if (!c || !(c instanceof type)) throw new ServiceError(`no ${type.name.replace('Client', '').toLowerCase()} service "${id}"`, { statusCode: 404, code: 'UNKNOWN_SERVICE' });
-    return c;
+    // Adapter-node may place the route-side constructor and the composition-root constructor in
+    // separate chunks, so class identity is not a safe service-type discriminator there. The
+    // registry's validated fixed type remains the authority in both runtimes.
+    const expected = CLIENT_TYPES.get(type.name);
+    if (!c || !expected || c.def.type !== expected) throw new ServiceError(`no ${type.name.replace('Client', '').toLowerCase()} service "${id}"`, { statusCode: 404, code: 'UNKNOWN_SERVICE' });
+    return /** @type {T} */ (c);
   }
 
   /** @param {string} id */

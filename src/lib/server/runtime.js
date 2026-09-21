@@ -6,11 +6,17 @@ import { PasswordHasher } from '../../crypto/password.js';
 import { TotpKeyring } from '../../crypto/totp-keyring.js';
 import { Database } from '../../db.js';
 import { ConsoleAuth } from '../../domain/console-auth.js';
+import { AdminService } from '../../domain/admin-service.js';
+import { AuditEvents } from '../../domain/audit-events.js';
 import { Maintenance } from '../../maintenance.js';
 import { RateLimiter } from '../../rate-limiter.js';
+import { ServiceClients } from '../../services/clients.js';
+import { OpenApiDocuments } from '../../services/openapi-documents.js';
+import { ServiceRegistry } from '../../services/registry.js';
 import { AdminStore } from '../../store/admin-store.js';
 import { AuditStore } from '../../store/audit-store.js';
 import { SessionStore } from '../../store/session-store.js';
+import { AuditClient } from '@atc-web/service-core/audit';
 
 const RUNTIME_STATE = Symbol.for('atc.console.sveltekit.runtime');
 
@@ -65,7 +71,14 @@ export class ConsoleRuntime {
           totpIssuer: config.totpIssuer,
         },
       });
+      this.adminService = new AdminService({
+        admins: this.admins,
+        sessions: this.sessions,
+        audit: this.audit,
+        hasher: this.hasher,
+      });
       this.limiter = new RateLimiter();
+      this.m4 = null;
       this.maintenance = new Maintenance({
         sessions: this.sessions,
         audit: this.audit,
@@ -87,8 +100,30 @@ export class ConsoleRuntime {
     if (this.state === 'ready') return;
     if (this.state !== 'initialized') throw new Error(`runtime cannot start from ${this.state}`);
     this.maintenance.start();
+    if (this.m4) this.m4.forwarder.start();
     this.state = 'ready';
   }
+
+  /** Load the fixed downstream registry and clients once, on first M4 request. */
+  prepareM4() {
+    if (this.m4) return this.m4;
+    const registry = ServiceRegistry.load(this.config.servicesFile);
+    const clients = new ServiceClients(registry, { timeoutMs: this.config.serviceTimeoutMs });
+    const docs = new OpenApiDocuments(clients);
+    const auditService = registry.ofType('audit')[0];
+    const forwarder = new AuditClient({
+      target: auditService?.apiKey ? { url: auditService.url, apiKey: auditService.apiKey } : null,
+      logger: this.log,
+    });
+    this.audit.onRecord = (entry, at) => { forwarder.record(AuditEvents.fromLogEntry(entry, at)); };
+    this.m4 = { registry, clients, docs, forwarder };
+    if (this.state === 'ready') forwarder.start();
+    return this.m4;
+  }
+
+  get registry() { return this.prepareM4().registry; }
+  get clients() { return this.prepareM4().clients; }
+  get docs() { return this.prepareM4().docs; }
 
   checkReadiness() {
     if (this.state !== 'ready') throw new Error('runtime is not ready');
@@ -108,11 +143,13 @@ export class ConsoleRuntime {
 
   finishShutdown() {
     this.beginShutdown();
+    const forwardingClosed = this.m4?.forwarder.close() ?? Promise.resolve();
     if (!this.closed) {
       this.db.close();
       this.closed = true;
     }
     this.state = 'stopped';
+    return forwardingClosed;
   }
 }
 

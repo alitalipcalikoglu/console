@@ -40,7 +40,7 @@ async function shutdown(reason) {
       runtime?.beginShutdown();
       server?.closeIdleConnections?.();
       if (server?.listening) await close(server);
-      runtime?.finishShutdown();
+      await runtime?.finishShutdown();
       clearTimeout(forceExit);
       runtime?.log.info('shutdown complete');
       process.exit(0);
@@ -80,7 +80,7 @@ try {
     : 'serving plain HTTP, terminate TLS at a reverse proxy');
   if (process.send) process.send('ready');
 } catch (err) {
-  runtime?.finishShutdown();
+  await runtime?.finishShutdown();
   if (err instanceof ConfigError) console.error(`configuration error: ${err.message}`);
   else console.error(err);
   process.exit(1);

@@ -8,6 +8,11 @@ source. The route parity test derives both sides instead of carrying a third rou
 New acceptance tests use a real TCP listener and HTTP requests. When SvelteKit replaces Fastify,
 the server adapter in `helpers.js` may change while the behavioral assertions remain.
 
+M4 keeps the parity gate derivational: the filesystem supplies 152 owned operations and the
+legacy source supplies only the four remaining migration-owned special-I/O operations (media raw
+upload, media bytes, audit export and QR PNG). `scripts/verify-sveltekit-m4.mjs` exercises the real
+adapter-node build with deterministic local downstream services; it does not call Fastify.
+
 Intentional migration deltas, which must not be mistaken for accidental drift:
 
 - M0 deliberately retains proof that legacy Fastify logout accepts no CSRF header. M3's native

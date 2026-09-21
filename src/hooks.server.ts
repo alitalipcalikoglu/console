@@ -7,14 +7,7 @@ import { AuthRequest, CSRF_HEADER } from '$lib/server/auth';
 import { OperationalResponse } from '$lib/server/operational';
 import { Runtime } from '$lib/server/runtime.js';
 
-const CSRF_ROUTES = new Set([
-  '/api/session/logout',
-  '/api/me/sessions/logout-others',
-  '/api/me/password',
-  '/api/me/totp/start',
-  '/api/me/totp/confirm',
-  '/api/me/totp/disable',
-]);
+const CSRF_EXEMPT = new Set(['/api/session/login', '/api/session/totp']);
 
 const clientIp = (event: Parameters<Handle>[0]['event'], trustProxy: boolean) => {
   const direct = event.getClientAddress() || null;
@@ -37,8 +30,9 @@ export const handle: Handle = async ({ event, resolve }) => {
     };
     event.locals.clientIp = clientIp(event, runtime.config.trustProxy);
     AuthRequest.attach(runtime, event.cookies, event.locals);
+    const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(event.request.method);
     event.locals.csrf = {
-      required: CSRF_ROUTES.has(event.route.id ?? ''),
+      required: mutation && (event.route.id?.startsWith('/api/') ?? false) && !CSRF_EXEMPT.has(event.route.id ?? ''),
       valid: event.request.headers.get(CSRF_HEADER) === '1',
     };
 

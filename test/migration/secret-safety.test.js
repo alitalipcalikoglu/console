@@ -30,17 +30,12 @@ test('M3 locals expose only safe request, principal and session summaries', () =
   }
 });
 
-test('M3 hook keeps body parsing out of the global lifecycle and names the exact CSRF boundary', () => {
+test('M4 hook keeps body parsing out of the global lifecycle and protects API mutations except authentication entry points', () => {
   const hook = readFileSync(new URL('../../src/hooks.server.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(hook, /arrayBuffer\(|request\.json\(|request\.body/);
-  const protectedRoutes = [
-    '/api/session/logout',
-    '/api/me/sessions/logout-others',
-    '/api/me/password',
-    '/api/me/totp/start',
-    '/api/me/totp/confirm',
-    '/api/me/totp/disable',
-  ];
-  for (const route of protectedRoutes) assert.match(hook, new RegExp(route.replaceAll('/', '\\/')));
-  assert.doesNotMatch(hook, /['"]\/api\/session\/(?:login|totp)['"]/);
+  assert.match(hook, /mutation/);
+  assert.match(hook, /event\.route\.id\?\.startsWith\('\/api\/'\)/);
+  assert.match(hook, /CSRF_EXEMPT/);
+  assert.match(hook, /'\/api\/session\/login'/);
+  assert.match(hook, /'\/api\/session\/totp'/);
 });

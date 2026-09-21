@@ -1,0 +1,6 @@
+import { FlagsClient, Schemas } from '$lib/server/m4-contract';
+import { jsonRoute, record } from '$lib/server/m4';
+export const GET = jsonRoute({ auth: 'session', params: Schemas.serviceIdParams, handler: async ({ runtime, params }) => { const client = runtime.clients.get(params.sid, FlagsClient); const [flag, history] = await Promise.all([client.getFlag(params.id), client.history(params.id, { limit: 20 })]); return { ...(flag as object), history: (history as any).items, historyNextBefore: (history as any).nextBefore }; } });
+export const PATCH = jsonRoute({ auth: 'admin', params: Schemas.serviceIdParams, body: Schemas.flagsPatch, handler: async (context) => { const output = await context.runtime.clients.get(context.params.sid, FlagsClient).patchFlag(context.params.id, context.body); record(context, 'flags.flag.update', context.params.id, { service: context.params.sid, patch: context.body }); return output; } });
+export const DELETE = jsonRoute({ auth: 'admin', params: Schemas.serviceIdParams, status: 204, handler: async (context) => { await context.runtime.clients.get(context.params.sid, FlagsClient).deleteFlag(context.params.id); record(context, 'flags.flag.delete', context.params.id, { service: context.params.sid }); } });
+
