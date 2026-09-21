@@ -131,9 +131,13 @@ try {
     assert.match(response.headers.get('traceparent') ?? '', TRACEPARENT);
     assert.equal(await response.text(), canonical);
 
-    response = await fetch(`http://127.0.0.1:${http.port}/`);
+    response = await fetch(`http://127.0.0.1:${http.port}/`, { redirect: 'manual' });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get('location'), '/login');
+    assert.doesNotMatch(await response.text(), /aria-label="main"/);
+    response = await fetch(`http://127.0.0.1:${http.port}/login`);
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /data-m1-foundation/);
+    assert.match(await response.text(), /Sign in to Console/);
   } finally {
     await stopRuntime(http);
   }

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const CLIENT_ROOT = 'build/client';
-const SERVER_SENTINEL = 'M1_SERVER_ONLY_BOUNDARY_6f0d44b1';
+const SERVER_SENTINEL = 'SECRETS_KEY';
+const scratch = mkdtempSync(join(tmpdir(), 'console-kit-build-'));
 
 function files(root) {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -49,12 +51,20 @@ const browserBundle = files(CLIENT_ROOT).map((path) => readFileSync(path)).join(
 const serverBundle = files('build/server').map((path) => readFileSync(path)).join('\n');
 assert.equal(browserBundle.includes(SERVER_SENTINEL), false, 'server-only module leaked into the browser bundle');
 assert.equal(serverBundle.includes(SERVER_SENTINEL), true, 'server-only proof must remain in the server output');
-assert.equal(browserBundle.includes('data-hydration-status'), true, 'the interactive page was not emitted into the hydration client');
+assert.equal(browserBundle.includes('Sign in to Console'), true, 'the interactive login page was not emitted into the hydration client');
 
 const port = await freePort();
 const origin = `http://127.0.0.1:${port}`;
 const child = spawn(process.execPath, ['build/index.js'], {
-  env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), ORIGIN: origin },
+  env: {
+    ...process.env,
+    HOST: '127.0.0.1',
+    PORT: String(port),
+    ORIGIN: origin,
+    DB_PATH: join(scratch, 'console.db'),
+    COOKIE_SECURE: 'false',
+    LOG_LEVEL: 'silent',
+  },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let output = '';
@@ -62,15 +72,13 @@ child.stdout?.on('data', (chunk) => { output += chunk; });
 child.stderr?.on('data', (chunk) => { output += chunk; });
 
 try {
-  const response = await fetchReady(origin, child, () => output);
+  const response = await fetchReady(`${origin}/login`, child, () => output);
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type') ?? '', /^text\/html/);
   const html = await response.text();
-  assert.match(html, /data-m1-foundation/);
-  assert.match(html, /M1 · adapter-node/);
-  assert.match(html, /data-hydrated="false"/);
-  assert.match(html, /awaiting hydration/);
-  assert.match(html, /Hydration proof: 0/);
+  assert.match(html, /Sign in to Console/);
+  assert.match(html, /id="email"/);
+  assert.match(html, /id="password"/);
   assert.match(html, /<script/);
   assert.match(html, /\/_app\/immutable\//);
   assert.equal(html.includes(SERVER_SENTINEL), false);
@@ -80,6 +88,7 @@ try {
     once(child, 'exit'),
     new Promise((_, reject) => setTimeout(() => reject(new Error('adapter-node did not stop')), 5_000)),
   ]);
+  rmSync(scratch, { recursive: true, force: true });
 }
 
 console.log('SvelteKit SSR, hydration bootstrap, adapter-node output and server-only boundary: OK');
