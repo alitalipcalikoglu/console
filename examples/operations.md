@@ -31,9 +31,14 @@ Either terminate at a reverse proxy (set `TRUST_PROXY=true` so lockouts and rate
 
 ```bash
 docker build -t atc-console .
-docker run -d --name console -p 3004:3004 -v console-data:/data -v $PWD/services.json:/config/services.json:ro --env-file .env atc-console
-docker exec -it console node scripts/admin.js create ali@example.com
+docker run -d --name console -p 3004:3004 -v console-data:/data -v $PWD/services.json:/config/services.json:ro --env-file .env -e DB_PATH=/data/console.db -e SERVICES_FILE=/config/services.json atc-console
+docker exec -it console npm run admin -- create ali@example.com
 ```
+
+The explicit path overrides prevent the host-oriented defaults in `.env` from bypassing the
+persistent volume and mounted service catalog. The health check follows `PORT`; a custom port must
+be set and published consistently, for example `-e PORT=4304 -p 4304:4304`. Named-volume ownership
+is initialized for the non-root `node` user; make bind-mounted data directories writable by it.
 
 ## Logs
 

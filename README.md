@@ -31,9 +31,15 @@ Production with Docker (the image builds the adapter-node application itself):
 
 ```bash
 docker build -t atc-console .
-docker run -d -p 3004:3004 -v console-data:/data -v ./services.json:/config/services.json:ro --env-file .env atc-console
-docker exec -it <container> node scripts/admin.js create you@example.com
+docker run -d --name console -p 3004:3004 -v console-data:/data -v ./services.json:/config/services.json:ro --env-file .env -e DB_PATH=/data/console.db -e SERVICES_FILE=/config/services.json atc-console
+docker exec -it console npm run admin -- create you@example.com
 ```
+
+The explicit storage/config values keep the container paths authoritative when a general-purpose
+`.env` also contains the host defaults (`./data/console.db` and `./services.json`). The image health
+check follows `PORT`; for a custom port, set and publish the same value (for example
+`-e PORT=4304 -p 4304:4304`). The empty named `/data` volume is initialized for the unprivileged
+`node` user. A bind-mounted data directory must likewise be writable by that user.
 
 Tests and type check (`node:test`, TypeScript and `svelte-check`):
 

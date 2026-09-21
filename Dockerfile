@@ -24,11 +24,18 @@ RUN mkdir -p /data /config && chown node:node /data /config
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY package.json openapi.yaml server.mjs ./
-COPY src ./src
-COPY scripts ./scripts
+# server.mjs and the production admin CLI deliberately share these server-side primitives.
+# Client/routes/build tooling stay in the build stage; only executable production source is copied.
+COPY src/config.js src/db.js src/maintenance.js src/rate-limiter.js ./src/
+COPY src/crypto ./src/crypto
+COPY src/domain ./src/domain
+COPY src/services ./src/services
+COPY src/store ./src/store
+COPY src/lib/server/runtime.js ./src/lib/server/runtime.js
+COPY scripts/admin.js ./scripts/admin.js
 USER node
 VOLUME ["/data", "/config"]
 EXPOSE 3004
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- --no-check-certificate "$( [ -n "$TLS_CERT_PATH" ] && echo https || echo http )://127.0.0.1:3004/health" || exit 1
+  CMD wget -qO- --no-check-certificate "$( [ -n "$TLS_CERT_PATH" ] && echo https || echo http )://127.0.0.1:${PORT}/health" || exit 1
 CMD ["node", "--disable-warning=ExperimentalWarning", "server.mjs"]

@@ -27,7 +27,7 @@
     "smoke:m6": "npm run build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-m6.mjs",
     "smoke:m7": "npm run build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-m7.mjs",
     "smoke:browser": "npm run build && node --disable-warning=ExperimentalWarning scripts/verify-sveltekit-m7-browser.mjs",
-    "admin": "node --disable-warning=ExperimentalWarning --env-file=.env scripts/admin.js",
+    "admin": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/admin.js",
     "test": "npm run build && node --disable-warning=ExperimentalWarning --test \"test/**/*.test.js\"",
     "typecheck": "tsc -p jsconfig.json && npm run check"
   },
