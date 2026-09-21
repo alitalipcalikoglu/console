@@ -10,13 +10,13 @@ Installed or not, the same URL and session are used.
 
 ## Offline
 
-The service worker precaches the app shell (HTML, JS, CSS, icons). Without network the console still opens and shows the last screen's layout; API calls fail and the header shows an **offline** badge. Nothing from `/api` is ever cached, so you never see stale data presented as fresh.
+The service worker caches only generated immutable JS/CSS assets plus public icons, the manifest and robots file. Navigations, authenticated SSR HTML and `/api` bypass the worker. Without network, protected screens are unavailable and the header's connectivity state can report **offline** once the app is already open; no previous protected HTML or API response is replayed.
 
 ## Updates
 
 After a deployment the service worker downloads the new bundle in the background and shows "A new version is ready" with a **Reload** button. Reloading switches to the new version immediately. The worker also checks for updates once an hour while the app is open.
 
-Hashed asset files are served with a one-year immutable cache; `index.html`, `sw.js` and the manifest are always revalidated, so a deploy is visible on the next load.
+Hashed asset files are immutable; HTML and the service worker remain network-owned, so a deploy is visible on the next load. Upgrade activation also deletes caches created by the removed legacy SPA worker.
 
 ## Auto-refresh numbers
 

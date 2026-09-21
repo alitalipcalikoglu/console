@@ -3,19 +3,15 @@ import { request as httpRequest } from 'node:http';
 import { testConsole } from '../helpers.js';
 
 /**
- * Starts the real current Console on a kernel-assigned TCP port. Migration tests use HTTP rather
- * than Fastify inject so the same assertions can be retained when the server becomes SvelteKit.
- * Only this adapter should need to change during the framework migration.
+ * Starts the canonical built adapter-node Console on a kernel-assigned TCP port. Contract tests
+ * use real HTTP so process, streaming and response behavior are exercised together.
  *
  * @param {Parameters<typeof testConsole>[0]} [options]
  */
 export async function startConsole(options) {
   const fixture = await testConsole(options);
-  await fixture.app.listen({ host: '127.0.0.1', port: 0 });
-  const address = /** @type {import('node:net').AddressInfo} */ (fixture.app.server.address());
   return {
     ...fixture,
-    origin: `http://127.0.0.1:${address.port}`,
     close: () => fixture.app.close(),
   };
 }

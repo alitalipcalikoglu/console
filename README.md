@@ -1,10 +1,10 @@
 # console
 
-One installable web app to watch and operate the atc-web services: notify, auth, media, gateway, audit, shortlink, flags, scheduler, webhook-out, search, ratelimit and geo. Fastify backend-for-frontend plus a Svelte 5 progressive web app. Works on phones and desktops, light and dark, Turkish and English.
+One installable SvelteKit application to watch and operate the atc-web services: notify, auth, media, gateway, audit, shortlink, flags, scheduler, webhook-out, search, ratelimit and geo. It uses filesystem routes for both SSR pages and typed API endpoints and runs through adapter-node. Works on phones and desktops, light and dark, Turkish and English.
 
 The console depends on nothing else to run: its own administrator accounts, sessions, two-factor authentication and audit log live in its own SQLite database. Services are reached over HTTP with dedicated API keys; a service being down shows up as a red card, not as a broken console.
 
-Runtime dependencies include `fastify`, `@fastify/static`, `yaml`, `ajv` and `ajv-formats`; the locally bundled API reference uses `swagger-ui-dist`. Build-time only: `svelte`, `vite`. Storage via `node:sqlite` (Node 22.13+).
+Runtime dependencies include `@atc-web/service-core`, `yaml`, `ajv` and `ajv-formats`; the locally bundled API reference uses `swagger-ui-dist`. SvelteKit, adapter-node and Vite produce the application build. Storage uses `node:sqlite` (Node 22.13+).
 
 ## Run
 
@@ -12,36 +12,12 @@ Runtime dependencies include `fastify`, `@fastify/static`, `yaml`, `ajv` and `aj
 cp .env.example .env                    # service keys, cookie/TLS settings
 cp services.example.json services.json  # which services, where, which key
 npm ci
-npm run build                           # Svelte app → public/
+npm run build                           # SvelteKit → adapter-node build/
 npm run admin -- create you@example.com # first administrator (password prompted)
 npm start
 ```
 
-Local development with hot reload: `npm run dev` (API on 3004) and `npm run dev:ui` (Vite on 5173, proxies `/api`). Set `COOKIE_SECURE=false` for plain-http development.
-
-### SvelteKit migration foundation
-
-The M1 foundation lives in canonical `src/routes/` and builds with adapter-node, but it is not the
-production runtime yet. `npm start`, `npm run dev`, and `npm run build` continue to operate the
-legacy Fastify + Vite SPA without mounting either framework inside the other. During the staged
-migration, use `npm run kit:dev`, `npm run kit:check`, `npm run kit:build`, and `npm run kit:smoke`
-to exercise the independent SvelteKit foundation. `vite.legacy.config.js` is transitional and will
-disappear with the old `ui/` application; the canonical `vite.config.ts` belongs to SvelteKit.
-
-M2 adds `npm run kit:runtime` as the explicit adapter-node migration runtime. It owns the shared
-configuration, SQLite connection, maintenance timer, graceful process lifecycle, and the four
-filesystem-routed operational endpoints (`/health`, `/ready`, `/v1/info`, `/openapi.yaml`). Run
-`npm run kit:runtime:smoke` for HTTP, native HTTPS, IPC readiness, shutdown and endpoint parity
-checks. The public `start` and `build` commands remain on the legacy implementation until the
-remaining API and UI routes have migrated; the two runtimes are never mounted or proxied together.
-
-M3 adds the native SvelteKit request lifecycle and 10 explicit auth/session endpoints under
-`src/routes/api/`. `src/hooks.server.ts` owns trace context, trusted client IP, safe request locals,
-session resolution, common security headers and the auditable CSRF route boundary. Run
-`npm run kit:auth:smoke` for black-box auth, TOTP, session, cookie, validation, trace and CSRF
-coverage. Authenticated logout now requires `X-Console-Request: 1`; login and pending-session TOTP
-remain the only pre-session exceptions. Legacy Fastify retains mutually exclusive compatibility
-copies until final cutover.
+Local development with hot reload uses one server: `npm run dev`. Set `COOKIE_SECURE=false` for plain-http development. `npm run build` creates the adapter-node application and `npm start` runs it through the thin native HTTP/HTTPS wrapper in `server.mjs`.
 
 Production with PM2:
 
@@ -51,7 +27,7 @@ pm2 start ecosystem.config.cjs
 pm2 save && pm2 startup
 ```
 
-Production with Docker (the image builds the UI itself):
+Production with Docker (the image builds the adapter-node application itself):
 
 ```bash
 docker build -t atc-console .
@@ -59,7 +35,7 @@ docker run -d -p 3004:3004 -v console-data:/data -v ./services.json:/config/serv
 docker exec -it <container> node scripts/admin.js create you@example.com
 ```
 
-Tests and type check (server tests with `node:test`, UI with `svelte-check`):
+Tests and type check (`node:test`, TypeScript and `svelte-check`):
 
 ```bash
 npm test
@@ -129,7 +105,7 @@ Environment only; see [.env.example](.env.example) for the full list, and "How i
 - TOTP (RFC 6238, Google Authenticator compatible) with replay protection; disabling needs password and a valid code. Recommended for every admin: the console holds every service key. The secret is sealed at rest (AES-256-GCM, `SECRETS_KEY`) — see "TOTP secret storage" below.
 - CSRF: every mutating request must carry `X-Console-Request: 1`, which cross-site pages cannot add; cookies are `SameSite=Strict` as well.
 - Service keys never reach the browser. Media previews and downloads are streamed through the console.
-- Strict Content-Security-Policy on every page (`script-src 'self'` plus the hash of the theme pre-paint script, no remote sources, `frame-ancestors 'none'`). Security headers on every response (`X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: same-origin`, HSTS with TLS); API responses are `no-store`.
+- Strict Content-Security-Policy on every page (`script-src 'self'` plus a per-response nonce for SvelteKit bootstrap scripts, no remote sources, `frame-ancestors 'none'`). Security headers on every response (`X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: same-origin`, HSTS with TLS); API and authenticated HTML responses are `no-store`.
 - The file-bytes proxy renders only raster image types inline; anything else (SVG, PDF, HTML) is delivered as `application/octet-stream` attachment inside a sandboxed CSP, so a hostile upload cannot run on the console's origin.
 - The first administrator is created from the server's command line; there is no sign-up page.
 - Container runs as the unprivileged `node` user.
@@ -209,29 +185,31 @@ for a single key, extended to "whichever key was current when that backup's data
 
 ## PWA
 
-Installable (manifest, icons for iOS and Android, standalone display). The service worker precaches the app shell, serves navigations network-first with an offline fallback, never caches `/api`, and shows a "new version ready" prompt when a deployment lands. An offline badge appears in the header when the network drops.
+Installable (manifest, icons for iOS and Android, standalone display). The service worker caches only generated immutable build assets and explicitly public static assets. Navigations, authenticated SSR HTML and `/api` always use the network; protected content is unavailable offline. It retains the old cache-name prefix only so upgrades can delete legacy SPA caches. A new deployment still produces the "new version ready" prompt.
 
 ## Visual checks
 
-Every UI change is checked in a browser at desktop and 375 px widths before it is committed. `ui/build/overflow-probe.js` holds the probe: it reports page overflow, any element whose right edge leaves its parent (clipped icons, inputs wider than their box, text spilling out of nested boxes) and whether scrolling tables and segmented controls show their fade hint. Run it on every page the change touches, then look at the screenshots for anything the probe cannot see (alignment, spacing, truncated labels).
+Every UI change is checked in a browser at desktop and 375 px widths before it is committed. `npm run smoke:browser` exercises the canonical adapter-node application and captures the established responsive, navigation, theme, localization, toast, docs and PWA checks.
 
 ## Code layout
 
-Class-based; dependencies are injected through constructors, `src/application.js` is the composition root.
+SvelteKit filesystem routes are the application boundary. `src/lib/server/runtime.js` owns process-scoped resources and `server.mjs` is only the adapter-node process wrapper.
 
 | Class | File | Role |
 |---|---|---|
-| `Application` | `src/application.js` | Wiring, startup, graceful shutdown |
+| `ConsoleRuntime`, `Runtime` | `src/lib/server/runtime.js` | Process resources, startup and graceful shutdown integration |
 | `Config` | `src/config.js` | Validated environment |
 | `Database` | `src/db.js` | SQLite connection, migrations, transactions |
 | `PasswordHasher`, `OpaqueToken`, `Totp`, `TotpKeyring` | `src/crypto/` | scrypt, session tokens, RFC 6238, current/previous key rotation over `SecretBox` |
 | `AdminStore`, `SessionStore`, `AuditStore` | `src/store/` | Persistence |
 | `ConsoleAuth`, `AdminService`, `ConsoleError` | `src/domain/` | Sign-in, 2FA, sessions; admin management; error codes |
 | `ServiceRegistry`, `ServiceClients`, `OpenApiDocuments`, `*Client`, `PrometheusText` | `src/services/` | services.json, typed clients per service, live OpenAPI aggregation, metrics parsing |
-| `ConsoleApi`, `SessionAuth` | `src/http/` | Routes, cookies, CSRF, roles, static app |
+| SvelteKit endpoints | `src/routes/**/+server.ts` | Explicit API/operational routes |
+| SvelteKit pages/layouts | `src/routes/**/+page.svelte`, `+layout.svelte` | SSR pages and filesystem navigation |
+| Server helpers | `src/lib/server/` | Auth, validation, response and streaming helpers |
+| Client modules/components | `src/lib/client/`, `src/lib/components/`, `src/lib/pages/` | Browser behavior and page composition |
 | `RateLimiter`, `Maintenance` | `src/` | Login throttling, hourly purge |
 | `AdminCli` | `scripts/admin.js` | Create/list/reset administrators |
-| Svelte app | `ui/src/` | `lib/` (api, router, session, i18n, theme, pwa, qr, components), `pages/` |
 
 ## Examples
 

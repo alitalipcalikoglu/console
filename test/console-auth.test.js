@@ -3,14 +3,14 @@ import { test } from 'node:test';
 import { Totp } from '../src/crypto/totp.js';
 import { ConsoleAuth } from '../src/domain/console-auth.js';
 import { ConsoleError } from '../src/domain/errors.js';
-import { ADMIN_PASSWORD, testConsole } from './helpers.js';
+import { ADMIN_PASSWORD, testRuntime } from './helpers.js';
 
 const ctx = { ip: '203.0.113.9', userAgent: 'test' };
 /** @param {Promise<unknown>} p @param {string} code */
 const rejectsWith = (p, code) => assert.rejects(p, (e) => e instanceof ConsoleError && e.code === code ? true : (console.error(e), false));
 
 test('login, session resolution, idle and absolute expiry, logout', async () => {
-  const t = await testConsole({ env: { CONSOLE_SESSION_TTL_MIN: '60', CONSOLE_SESSION_IDLE_MIN: '10' } });
+  const t = await testRuntime({ env: { CONSOLE_SESSION_TTL_MIN: '60', CONSOLE_SESSION_IDLE_MIN: '10' } });
   await t.adminService.create({ email: 'a@console.local', name: 'A', password: ADMIN_PASSWORD, role: 'admin' }, null, ctx);
   await rejectsWith(t.auth.login({ email: 'a@console.local', password: 'wrong password!!' }, ctx), 'INVALID_CREDENTIALS');
   await rejectsWith(t.auth.login({ email: 'nobody@console.local', password: ADMIN_PASSWORD }, ctx), 'INVALID_CREDENTIALS');
@@ -40,7 +40,7 @@ test('login, session resolution, idle and absolute expiry, logout', async () => 
 });
 
 test('lockout after repeated failures, disabled accounts refused', async () => {
-  const t = await testConsole({ env: { CONSOLE_LOGIN_MAX_FAILURES: '3', CONSOLE_LOGIN_LOCKOUT_MIN: '15' } });
+  const t = await testRuntime({ env: { CONSOLE_LOGIN_MAX_FAILURES: '3', CONSOLE_LOGIN_LOCKOUT_MIN: '15' } });
   const a = await t.adminService.create({ email: 'a@console.local', name: 'A', password: ADMIN_PASSWORD, role: 'admin' }, null, ctx);
   for (let i = 0; i < 3; i++) await rejectsWith(t.auth.login({ email: 'a@console.local', password: 'wrong password!!' }, ctx), 'INVALID_CREDENTIALS');
   const locked = await t.auth.login({ email: 'a@console.local', password: ADMIN_PASSWORD }, ctx).catch((e) => e);
@@ -55,7 +55,7 @@ test('lockout after repeated failures, disabled accounts refused', async () => {
 });
 
 test('TOTP enrolment, second step, replay refusal, disable', async () => {
-  const t = await testConsole();
+  const t = await testRuntime();
   await t.adminService.create({ email: 'a@console.local', name: 'A', password: ADMIN_PASSWORD, role: 'admin' }, null, ctx);
   let admin = /** @type {any} */ (t.admins.byEmail('a@console.local'));
   const { secret, uri } = t.auth.startTotp(admin);
@@ -89,7 +89,7 @@ test('TOTP enrolment, second step, replay refusal, disable', async () => {
 });
 
 test('password change keeps the current session and drops the others; policy enforced', async () => {
-  const t = await testConsole();
+  const t = await testRuntime();
   await t.adminService.create({ email: 'a@console.local', name: 'A', password: ADMIN_PASSWORD, role: 'admin' }, null, ctx);
   const s1 = await t.auth.login({ email: 'a@console.local', password: ADMIN_PASSWORD }, ctx);
   const s2 = await t.auth.login({ email: 'a@console.local', password: ADMIN_PASSWORD }, ctx);
@@ -106,7 +106,7 @@ test('password change keeps the current session and drops the others; policy enf
 });
 
 test('AdminService protects the last active administrator and self-demotion', async () => {
-  const t = await testConsole();
+  const t = await testRuntime();
   const root = await t.adminService.create({ email: 'root@console.local', name: 'Root', password: ADMIN_PASSWORD, role: 'admin' }, null, ctx);
   const actor = /** @type {any} */ (t.admins.byId(root.id));
   await rejectsWith(t.adminService.create({ email: 'root@console.local', name: 'Dup', password: ADMIN_PASSWORD, role: 'viewer' }, actor, ctx), 'EMAIL_TAKEN');

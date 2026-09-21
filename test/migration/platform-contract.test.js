@@ -3,7 +3,7 @@ import { fork, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -52,7 +52,7 @@ test('operational oracle: health, readiness and service identity remain exact', 
   response = await fetch(`${consoleApp.origin}/v1/info`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    service: 'console', version: '1.0.0', apiVersion: 'v1',
+    service: 'console', version: '1.1.0', apiVersion: 'v1',
     capabilities: ['totp', 'admin-roles', 'audit-trail', 'service-proxy'],
     schemaVersion: 2, serviceCore: '1.12.0',
   });
@@ -126,15 +126,12 @@ function childExit(child, timeoutMs = 10_000) {
 test('process oracle: configured port, ready IPC, identity and graceful SIGTERM', { timeout: 20_000 }, async () => {
   const scratch = mkdtempSync(join(tmpdir(), 'console-m0-process-'));
   const servicesFile = join(scratch, 'services.json');
-  const publicDir = join(scratch, 'public');
   const dbPath = join(scratch, 'console.db');
-  mkdirSync(publicDir);
-  writeFileSync(join(publicDir, 'index.html'), '<!doctype html><title>migration process oracle</title>');
   writeFileSync(servicesFile, JSON.stringify({ services: [{ id: 'gateway', type: 'gateway', url: 'http://127.0.0.1:1' }] }));
   const port = await getFreePort();
-  const child = fork(resolve('src/index.js'), [], {
+  const child = fork(resolve('server.mjs'), [], {
     cwd: resolve('.'),
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', LOG_LEVEL: 'silent', COOKIE_SECURE: 'false', DB_PATH: dbPath, SERVICES_FILE: servicesFile, PUBLIC_DIR: publicDir },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', LOG_LEVEL: 'silent', COOKIE_SECURE: 'false', DB_PATH: dbPath, SERVICES_FILE: servicesFile },
     execArgv: ['--disable-warning=ExperimentalWarning'], stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
   let stderr = '';
@@ -162,7 +159,7 @@ test('process oracle: configured port, ready IPC, identity and graceful SIGTERM'
 });
 
 test('process oracle: invalid startup configuration fails closed', { timeout: 10_000 }, async () => {
-  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', resolve('src/index.js')], {
+  const child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', resolve('server.mjs')], {
     cwd: resolve('.'), env: { ...process.env, PORT: 'not-a-port', LOG_LEVEL: 'silent' }, stdio: ['ignore', 'ignore', 'pipe'],
   });
   let stderr = '';
@@ -172,17 +169,21 @@ test('process oracle: invalid startup configuration fails closed', { timeout: 10
   assert.match(stderr, /^configuration error: PORT must be an integer/m);
 });
 
-test('process oracle: PM2 budget and lifecycle close ordering remain frozen', () => {
+test('process oracle: PM2 budget and canonical lifecycle close ordering remain frozen', () => {
   const ecosystem = require('../../ecosystem.config.cjs');
   const processConfig = ecosystem.apps[0];
-  assert.equal(processConfig.script, 'src/index.js');
+  assert.equal(processConfig.script, 'server.mjs');
   assert.equal(processConfig.wait_ready, true);
   assert.equal(processConfig.listen_timeout, 10_000);
   assert.equal(processConfig.kill_timeout, 35_000);
-  const source = readFileSync(new URL('../../src/application.js', import.meta.url), 'utf8');
-  const steps = ['this.maintenance?.stop()', 'this.app?.close()', 'this.forwarder.close()', 'this.db.close()'];
-  const positions = steps.map((step) => source.indexOf(step));
+  const wrapper = readFileSync(new URL('../../server.mjs', import.meta.url), 'utf8');
+  const runtime = readFileSync(new URL('../../src/lib/server/runtime.js', import.meta.url), 'utf8');
+  const wrapperSteps = ['runtime?.beginShutdown()', 'await close(server)', 'await runtime?.finishShutdown()'];
+  const positions = wrapperSteps.map((step) => wrapper.indexOf(step));
   assert.ok(positions.every((position) => position >= 0));
-  assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'maintenance, HTTP, audit forwarder and DB close in that order');
-  assert.match(source, /forceExitMs:\s*30_000/);
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'runtime stops maintenance before HTTP drain and resource close');
+  assert.match(runtime, /this\.maintenance\.stop\(\)/);
+  assert.match(runtime, /this\.m4\?\.forwarder\.close\(\)/);
+  assert.match(runtime, /this\.db\.close\(\)/);
+  assert.match(wrapper, /FORCE_EXIT_MS\s*=\s*30_000/);
 });

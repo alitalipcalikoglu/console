@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { ADMIN_PASSWORD, CSRF, signIn, testConsole } from './helpers.js';
 
@@ -148,28 +146,22 @@ const fake = createServer((req, res) => {
     json(404, { error: { code: 'NOT_FOUND', message: 'nope' } });
   });
 });
-const pub = mkdtempSync(join(tmpdir(), 'console-public-'));
-mkdirSync(join(pub, 'assets'));
-writeFileSync(join(pub, 'index.html'), '<!doctype html><title>console</title><script>try{document.documentElement.dataset.theme="dark"}catch{}</script><script type="module" src="/assets/app-abc123def.js"></script>');
-writeFileSync(join(pub, 'assets', 'app-abc123def.js'), 'console.log(1)');
-writeFileSync(join(pub, 'sw.js'), '// sw');
-
 /** @type {Awaited<ReturnType<typeof testConsole>>} */
 let t;
 let origin = '';
 before(async () => {
   await new Promise((r) => fake.listen(0, '127.0.0.1', () => r(undefined)));
   origin = `http://127.0.0.1:${/** @type {any} */ (fake.address()).port}`;
-  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin, flags: origin, scheduler: origin, 'webhook-out': origin, search: origin, ratelimit: origin, geo: origin }, publicDir: pub });
+  t = await testConsole({ urls: { notify: origin, auth: origin, media: origin, gateway: origin, audit: origin, shortlink: origin, flags: origin, scheduler: origin, 'webhook-out': origin, search: origin, ratelimit: origin, geo: origin } });
 });
-after(async () => { await t.app.close(); fake.close(); rmSync(pub, { recursive: true, force: true }); });
+after(async () => { await t.app.close(); fake.close(); });
 
 test('GET /v1/info reports console\'s own identity and capabilities (Stage 7)', async () => {
   const res = await t.app.inject('/v1/info');
   assert.equal(res.statusCode, 200);
   const body = res.json();
   assert.equal(body.service, 'console');
-  assert.equal(body.version, '1.0.0');
+  assert.equal(body.version, '1.1.0');
   assert.equal(body.apiVersion, 'v1');
   assert.deepEqual(body.capabilities, ['totp', 'admin-roles', 'audit-trail', 'service-proxy']);
   assert.equal(typeof body.schemaVersion, 'number');
@@ -203,20 +195,26 @@ test('documentation API is authenticated, allowlisted and serves local and upstr
   assert.equal((await t.app.inject({ url: '/api/docs/services/not-real/openapi', headers })).json().error.code, 'DOCS_UNKNOWN_SERVICE');
 });
 
-test('static app: index, SPA fallback, hashed assets immutable, API 404 stays JSON', async () => {
-  let res = await t.app.inject('/');
+test('filesystem pages, generated assets and frontend/API 404 contracts', async () => {
+  const { cookie } = await signIn(t);
+  let res = await t.app.inject({ url: '/', headers: { cookie } });
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /<title>console/);
-  assert.equal(res.headers['cache-control'], 'no-cache');
-  res = await t.app.inject('/auth/users/abc');
-  assert.equal(res.statusCode, 200, 'client route falls back to index.html');
-  res = await t.app.inject('/assets/app-abc123def.js');
-  assert.equal(res.headers['cache-control'], 'public, max-age=31536000, immutable');
-  res = await t.app.inject('/sw.js');
-  assert.equal(res.headers['service-worker-allowed'], '/');
+  assert.match(res.body, /<title>[^<]*Console<\/title>/);
+  const asset = /(?:src|href)="((?:\.\/|\/)\_app\/immutable\/[^"]+)"/.exec(res.body)?.[1];
+  assert.ok(asset);
+  res = await t.app.inject(new URL(asset, `${t.origin}/`).pathname);
+  assert.equal(res.statusCode, 200);
+  assert.match(String(res.headers['cache-control']), /immutable/);
+  res = await t.app.inject({ url: '/auth/auth/users/abc', headers: { cookie } });
+  assert.equal(res.statusCode, 200, 'filesystem dynamic route resolves directly');
+  res = await t.app.inject('/service-worker.js');
+  assert.equal(res.statusCode, 200);
+  assert.equal((await t.app.inject('/manifest.webmanifest')).statusCode, 200);
   assert.equal((await t.app.inject('/missing.png')).statusCode, 404);
-  assert.equal((await t.app.inject('/assets/gone-abc123.js')).statusCode, 404);
-  assert.equal((await t.app.inject('/flags/flags/flags/checkout.new')).statusCode, 200, 'client routes may contain dots');
+  assert.equal((await t.app.inject({ url: '/flags/flags/flags/checkout.new', headers: { cookie } })).statusCode, 200, 'filesystem routes may contain dots');
+  res = await t.app.inject({ url: '/unknown/deep/link', headers: { cookie } });
+  assert.equal(res.statusCode, 404);
+  assert.match(String(res.headers['content-type']), /^text\/html/);
   res = await t.app.inject('/api/nothing');
   assert.equal(res.statusCode, 404);
   assert.equal(res.json().error.code, 'NOT_FOUND');
@@ -235,7 +233,7 @@ test('session endpoints: login sets an httpOnly cookie, /session reflects state,
   assert.equal(me.headers['cache-control'], 'no-store');
   const bad = await t.app.inject({ method: 'POST', url: '/api/session/login', payload: { email: 'root@console.local', password: 'wrong wrong wrong' } });
   assert.equal(bad.statusCode, 401);
-  const out = await t.app.inject({ method: 'POST', url: '/api/session/logout', headers: { cookie } });
+  const out = await t.app.inject({ method: 'POST', url: '/api/session/logout', headers: { cookie, ...CSRF } });
   assert.equal(out.statusCode, 204);
   assert.match(String(out.headers['set-cookie']), /Max-Age=0/);
   assert.equal((await t.app.inject({ url: '/api/admins', headers: { cookie } })).statusCode, 401);
@@ -371,8 +369,8 @@ test('media: list, thumbnail proxy, streaming upload, delete, ticket', async () 
   assert.equal(svg.statusCode, 200);
   assert.equal(svg.headers['content-type'], 'application/octet-stream', 'non-raster types are neutralised');
   assert.match(String(svg.headers['content-disposition']), /^attachment/);
-  const page = await t.app.inject('/');
-  assert.match(String(page.headers['content-security-policy']), /script-src 'self' 'sha256-[A-Za-z0-9+/=]{44}'; style-src/, 'inline theme script is hashed, module script is not');
+  const page = await t.app.inject({ url: '/', headers: { cookie } });
+  assert.match(String(page.headers['content-security-policy']), /script-src 'self' 'nonce-[A-Za-z0-9+/=]+';/, 'canonical inline scripts are covered by the generated CSP nonce');
   seen.length = 0;
   res = await t.app.inject({ method: 'PUT', url: '/api/services/media/media/files?visibility=public&name=up.png', headers: { cookie, ...CSRF, 'content-type': 'image/png' }, payload: Buffer.alloc(1000, 1) });
   assert.equal(res.statusCode, 201, res.body);
@@ -406,17 +404,8 @@ test('admin management over HTTP', async () => {
 });
 
 test('PATCH /api/services/:sid/settings writes polling to services.json, audited, admin only', async () => {
-  const { mkdtempSync, readFileSync, writeFileSync, rmSync } = await import('node:fs');
-  const { join } = await import('node:path');
-  const { tmpdir } = await import('node:os');
-  const { ServiceRegistry } = await import('../src/services/registry.js');
-  const { servicesDoc, servicesEnv } = await import('./helpers.js');
-  const dir = mkdtempSync(join(tmpdir(), 'console-settings-'));
-  try {
-    const path = join(dir, 'services.json');
-    writeFileSync(path, JSON.stringify(servicesDoc({ notify: origin })));
-    t.clients.registry = ServiceRegistry.load(path, servicesEnv);
-    const { cookie } = await signIn(t);
+  const path = t.servicesFile;
+  const { cookie } = await signIn(t);
     const viewer = await signIn(t, { email: 'viewer2@console.local', role: 'viewer' });
     let res = await t.app.inject({ method: 'PATCH', url: '/api/services/notify/settings', headers: { cookie: viewer.cookie, ...CSRF }, payload: { polling: { enabled: true, intervalSec: 30 } } });
     assert.equal(res.statusCode, 403);
@@ -430,10 +419,7 @@ test('PATCH /api/services/:sid/settings writes polling to services.json, audited
     assert.equal((await t.app.inject({ method: 'PATCH', url: '/api/services/nope/settings', headers: { cookie, ...CSRF }, payload: { polling: { enabled: false, intervalSec: 30 } } })).statusCode, 404);
     const audit = await t.app.inject({ url: '/api/audit?action=service.', headers: { cookie } });
     assert.equal(audit.json().items[0].action, 'service.settings.update');
-    assert.equal(audit.json().items[0].target, 'notify');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  assert.equal(audit.json().items[0].target, 'notify');
 });
 
 test('audit service: events with filters, detail, stats, chain, streamed export (audited)', async () => {

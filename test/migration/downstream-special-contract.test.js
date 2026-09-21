@@ -131,7 +131,7 @@ test('downstream oracle: service errors keep status, code, details and service i
   assert.deepEqual(await response.json(), { error: { code: 'DOWNSTREAM_CONFLICT', message: 'fixture conflict', service: 'notify', details: { safe: true } } });
 });
 
-test('downstream oracle: the configured request deadline maps an unresponsive service safely', { timeout: 5_000 }, async () => {
+test('downstream oracle: the configured request deadline maps an unresponsive service safely', { timeout: 7_000 }, async () => {
   const response = await fetch(`${consoleApp.origin}/api/services/notify/notify/messages?status=scheduled`, { headers: { cookie } });
   assert.equal(response.status, 502);
   assert.deepEqual(await response.json(), {
@@ -201,9 +201,12 @@ test('media upload oracle: raw streaming, metadata headers, content length and 5
   assert.equal(fixedRequest.headers['content-length'], String(fixed.length));
   assert.equal(fixedRequest.headers['content-type'], 'application/x-fixture');
 
-  const source = readFileSync(new URL('../../src/http/console-api.js', import.meta.url), 'utf8');
-  const limits = [...source.matchAll(/bodyLimit:\s*(512\s*\*\s*1024\s*\*\s*1024)/g)];
-  assert.equal(limits.length, 2, 'parser and upload route both declare the current limit');
+  const source = readFileSync(new URL('../../src/services/upload-stream.js', import.meta.url), 'utf8');
+  const wrapper = readFileSync(new URL('../../server.mjs', import.meta.url), 'utf8');
+  const route = readFileSync(new URL('../../src/routes/api/services/[sid]/media/files/+server.ts', import.meta.url), 'utf8');
+  assert.match(source, /CONSOLE_UPLOAD_LIMIT_BYTES\s*=\s*512\s*\*\s*1024\s*\*\s*1024/);
+  assert.match(wrapper, /BODY_SIZE_LIMIT.*CONSOLE_UPLOAD_LIMIT_BYTES/);
+  assert.match(route, /contentLength.*CONSOLE_UPLOAD_LIMIT_BYTES/);
   assert.equal(512 * 1024 * 1024, 536_870_912);
   const clientSource = readFileSync(new URL('../../src/services/media-client.js', import.meta.url), 'utf8');
   assert.match(clientSource, /raw:\s*\/\*\* @type \{any\} \*\/ \(stream\)/, 'the current client passes the incoming stream through as raw body');

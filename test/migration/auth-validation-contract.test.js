@@ -101,10 +101,9 @@ test('auth oracle: expiry and explicit revocation invalidate otherwise valid coo
     const token = decodeURIComponent(cookie.slice(cookie.indexOf('=') + 1));
     const session = expiring.sessions.byToken(token);
     assert.ok(session);
-    expiring.clock.now = session.expires_at + 1;
+    expiring.db.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?').run(Date.now() - 1, session.id);
     assert.deepEqual(await (await fetch(`${expiring.origin}/api/session`, { headers: { cookie } })).json(), { admin: null, totpPending: false });
 
-    expiring.clock.now = Date.now();
     const secondLogin = await fetch(`${expiring.origin}/api/session/login`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ email: 'expiry@migration.test', password: ADMIN_PASSWORD }) });
     const secondCookie = cookiePair(secondLogin.headers.get('set-cookie'));
     const secondToken = decodeURIComponent(secondCookie.slice(secondCookie.indexOf('=') + 1));
@@ -117,10 +116,12 @@ test('auth oracle: expiry and explicit revocation invalidate otherwise valid coo
   }
 });
 
-test('legacy CSRF oracle: login and logout are exempt before the deliberate M3 security correction', async () => {
+test('auth oracle: authenticated logout requires CSRF and anonymous logout remains idempotent', async () => {
   const signedIn = await login('admin@migration.test');
-  const logout = await fetch(`${consoleApp.origin}/api/session/logout`, { method: 'POST', headers: { cookie: signedIn.cookie } });
-  assert.equal(logout.status, 204, 'KNOWN CURRENT BEHAVIOR — INTENTIONAL MIGRATION DELTA IN M3');
+  const rejected = await fetch(`${consoleApp.origin}/api/session/logout`, { method: 'POST', headers: { cookie: signedIn.cookie } });
+  assert.equal(rejected.status, 403);
+  const logout = await fetch(`${consoleApp.origin}/api/session/logout`, { method: 'POST', headers: { cookie: signedIn.cookie, ...CSRF } });
+  assert.equal(logout.status, 204);
   assert.match(String(logout.headers.get('set-cookie')), /^console_session=; Max-Age=0; Path=\/; HttpOnly; SameSite=Strict$/);
   const anonymousLogout = await fetch(`${consoleApp.origin}/api/session/logout`, { method: 'POST' });
   assert.equal(anonymousLogout.status, 204);

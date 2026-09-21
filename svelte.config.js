@@ -7,7 +7,7 @@ export default {
   kit: {
     adapter: adapter(),
     csp: {
-      mode: 'auto',
+      mode: 'nonce',
       directives: {
         'default-src': ['self'],
         'script-src': ['self'],

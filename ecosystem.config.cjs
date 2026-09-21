@@ -9,7 +9,7 @@ module.exports = {
     {
       name: 'console',
       cwd: __dirname,
-      script: 'src/index.js',
+      script: 'server.mjs',
       node_args: ['--disable-warning=ExperimentalWarning', `--env-file=${path.join(__dirname, '.env')}`],
       exec_mode: 'fork',
       instances: 1,             // one process per SQLite file (sessions, admins, audit)

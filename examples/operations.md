@@ -17,11 +17,11 @@ Nothing is strictly required to start except the variables named in `services.js
 
 ```bash
 git pull
-npm ci && npm run build     # UI to public/
+npm ci && npm run build     # adapter-node application to build/
 pm2 reload console          # zero downtime; the new process signals ready after listen()
 ```
 
-The server serves `public/` in wildcard mode, so a rebuilt bundle is picked up even without a restart; reload anyway to load server changes.
+The process must be reloaded after a build so `server.mjs` starts the new adapter-node handler. There is no wildcard SPA fallback; direct browser URLs are SvelteKit filesystem routes.
 
 ## TLS
 

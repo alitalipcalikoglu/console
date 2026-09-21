@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PollMetrics } from '../ui/src/lib/poll-metrics.js';
+import { PollMetrics } from '../src/lib/client/poll-metrics.js';
 
 test('PollMetrics keeps the last ten durations and stretches the interval to 1.3× the average', () => {
   const m = new PollMetrics();

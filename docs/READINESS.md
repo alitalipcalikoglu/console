@@ -2,10 +2,10 @@
 
 ## Purpose
 
-The administrative control plane: a Svelte progressive web app plus a Fastify backend-for-frontend
-that authenticates admins directly (its own accounts, sessions, TOTP — not delegated to `auth`,
-which is for end users of the platform's applications), and proxies typed, role-checked operations
-to every other service through per-service client classes.
+The administrative control plane: one SSR-enabled SvelteKit application running on adapter-node.
+It authenticates admins directly (its own accounts, sessions and TOTP — not delegated to `auth`,
+which is for end users) and exposes explicit, typed, role-checked filesystem endpoints for every
+operation sent through per-service client classes.
 
 ## Dependencies
 
@@ -14,7 +14,7 @@ serves the UI without it" but required for that service's own pages to work: a c
 unreachable service answers `502 UPSTREAM_UNREACHABLE` from the console's own API, the UI shows
 that service as unreachable rather than the console failing. The audit service is additionally
 used (when present, with a write-capable key) as the destination for the console's own log
-(`src/application.js`: `AuditClient` forwarder reading `registry.ofType('audit')[0]`).
+(`src/lib/server/runtime.js`: `AuditClient` forwarder reading `registry.ofType('audit')[0]`).
 
 ## Persistence
 
@@ -43,15 +43,16 @@ on a database problem. No caching (the check itself is cheap).
 
 ## Graceful shutdown
 
-SIGTERM/SIGINT → stop the maintenance timer → `app.close()` (Fastify drains in-flight requests,
-including any upload streaming through the console) → flush the audit-log forwarder (up to ~2 s
-plus retries) → close the database → exit. Force-exit at 30 s; PM2 `kill_timeout` 35 000 ms.
+SIGTERM/SIGINT → mark the runtime stopping and stop maintenance → stop accepting native HTTP/HTTPS
+connections and drain active responses (including uploads) → finish runtime shutdown, flush the
+audit-log forwarder and close SQLite → exit. `server.mjs` enforces a 30 s force-exit budget; PM2
+`kill_timeout` is 35 000 ms.
 `unhandledRejection` runs the same shutdown; `uncaughtException` exits immediately.
 
 ## Resource limits
 
-Request body cap 64 KiB for ordinary API calls (`bodyLimit` in `src/http/console-api.js`); file
-uploads proxied to `media` stream through without that limit (media enforces its own).
+Request body cap 64 KiB for ordinary API calls (SvelteKit/adapter-node body handling); file uploads
+use the explicit 512 MiB `UploadStream` boundary and stream to `media` with backpressure.
 `max_memory_restart`: 300M.
 
 ## Timeouts
@@ -84,16 +85,15 @@ restore just means the connection list is momentarily out of date, not unsafe) a
 
 ## Metrics
 
-None of its own — there is no `/metrics` endpoint (`src/http/console-api.js` has no such route).
+None of its own — there is no `src/routes/metrics/+server.ts` endpoint.
 The console instead *reads* other services' `/metrics` (via `PrometheusText.parse` in
 `src/services/client.js`) to render their dashboards.
 
 ## Logging
 
-Fastify's default request logging (no custom access-log line the way gateway has one); redacts
-`authorization` and `cookie`. `traceId`/`spanId` are emitted on every line (see Tracing below). See
-[OBSERVABILITY.md](../../stack/docs/OBSERVABILITY.md) for the target field vocabulary —
-`service`/`version` are not yet emitted here.
+`ConsoleLogger` from service-core is owned by the process runtime; sensitive authorization/cookie
+values never enter application logs. Trace/request context is established by SvelteKit hooks (see
+Tracing below). See [OBSERVABILITY.md](../../stack/docs/OBSERVABILITY.md) for the shared vocabulary.
 
 ## Tracing
 
@@ -104,11 +104,9 @@ The console's own inbound id is always self-generated (`requestIdHeader: false`)
 gateway, there is no upstream proxy whose header would make sense to trust here, so there is no
 `TRUST_PROXY`-style gate on it.
 
-As of post-production Phase 5, `traceparent` handling moved from console's own local copy
-(`src/trace-context.js`, a local `AsyncLocalStorage` in `src/services/client.js`) to the shared
-`@atc-web/service-core/trace` + `/request-context` primitives every backend service uses, wired via
-`registerRequestContext(app, { trustProxy: config.trustProxy })` in `src/http/console-api.js` — same
-behaviour, same trust policy, no longer a duplicated implementation. Console's `trustProxy` (default
+`traceparent` handling uses the shared `@atc-web/service-core/trace` and `/request-context`
+primitives every backend service uses, wired by `src/hooks.server.ts` — the same behavior and trust
+policy without a framework-specific route plugin. Console's `trustProxy` (default
 `false`, since a browser reaches console directly with no proxy in front of it) gates whether an
 inbound `traceparent` is ever adopted: untrusted or absent, console mints a fresh W3C trace for
 every inbound request; trusted and well-formed, the caller's trace-id is continued instead. A fresh

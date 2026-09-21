@@ -86,6 +86,15 @@
  * @property {{ enabled: boolean, intervalSec: number }} polling  Auto-refresh of the service's own page in the UI.
  */
 
-/** @typedef {import('fastify').FastifyBaseLogger} Logger */
+/**
+ * @typedef {object} Logger
+ * @property {(...args: any[]) => void} trace
+ * @property {(...args: any[]) => void} debug
+ * @property {(...args: any[]) => void} info
+ * @property {(...args: any[]) => void} warn
+ * @property {(...args: any[]) => void} error
+ * @property {(...args: any[]) => void} fatal
+ * @property {(bindings: object) => Logger} child
+ */
 
 export {};

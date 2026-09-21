@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AdminCli } from '../scripts/admin.js';
-import { ADMIN_PASSWORD, testConsole } from './helpers.js';
+import { ADMIN_PASSWORD, testRuntime } from './helpers.js';
 
 test('AdminCli creates, lists and resets passwords with hidden prompts', async () => {
-  const t = await testConsole();
+  const t = await testRuntime();
   /** @type {string[]} */
   const out = [];
   let answers = [ADMIN_PASSWORD, ADMIN_PASSWORD];
@@ -20,5 +20,5 @@ test('AdminCli creates, lists and resets passwords with hidden prompts', async (
   await t.auth.login({ email: 'root@console.local', password: 'another long password' }, { ip: null, userAgent: null });
   await assert.rejects(cli.run(['create', 'x@console.local', '--role', 'god']), /--role/);
   assert.equal(await cli.run(['nope']), 2);
-  await t.app.close();
+  t.close();
 });

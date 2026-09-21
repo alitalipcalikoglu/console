@@ -51,12 +51,18 @@ export const handle: Handle = async ({ event, resolve }) => {
     for (const [name, value] of Object.entries(OperationalResponse.securityHeaders(runtime.config))) {
       if (!response.headers.has(name)) response.headers.set(name, value);
     }
+    if (!response.headers.get('content-type')?.startsWith('text/html') && !response.headers.has('content-security-policy')) {
+      response.headers.set('content-security-policy', OperationalResponse.contentSecurityPolicy());
+    }
     response.headers.set('traceparent', trace.toString());
     if (event.url.pathname.startsWith('/api/')) {
       response.headers.set('cache-control', 'no-store');
       if (response.headers.get('content-type') === 'application/json') {
         response.headers.set('content-type', 'application/json; charset=utf-8');
       }
+    }
+    if (response.headers.get('content-type')?.startsWith('text/html')) {
+      response.headers.set('cache-control', event.locals.session ? 'no-store' : 'no-cache');
     }
     const setCookie = response.headers.get('set-cookie');
     if (setCookie?.startsWith('console_session=')) {
