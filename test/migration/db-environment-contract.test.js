@@ -11,11 +11,11 @@ import { AuditStore } from '../../src/store/audit-store.js';
 import { SessionStore } from '../../src/store/session-store.js';
 
 const scratch = mkdtempSync(join(tmpdir(), 'console-m0-db-'));
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
-test('DB oracle: a current v1.1.0 database reopens without schema or state drift', () => {
-  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-  assert.equal(pkg.version, '1.1.0');
+test(`DB oracle: a current package (${PACKAGE_VERSION}) database reopens without schema or state drift`, () => {
+  assert.match(PACKAGE_VERSION, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   const path = join(scratch, 'compat.db');
   const keyring = new TotpKeyring({ current: Buffer.alloc(32, 7) });
   let db = new Database(path);

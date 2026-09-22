@@ -4,6 +4,8 @@ import { createServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import { ADMIN_PASSWORD, CSRF, signIn, testConsole } from './helpers.js';
 
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+
 /** Fake service answering the endpoints the console uses; records every request. */
 /** @type {{ method: string|undefined, url: string|undefined, headers: import('node:http').IncomingHttpHeaders, body: string }[]} */
 const seen = [];
@@ -161,7 +163,7 @@ test('GET /v1/info reports console\'s own identity and capabilities (Stage 7)', 
   assert.equal(res.statusCode, 200);
   const body = res.json();
   assert.equal(body.service, 'console');
-  assert.equal(body.version, '1.1.0');
+  assert.equal(body.version, PACKAGE_VERSION);
   assert.equal(body.apiVersion, 'v1');
   assert.deepEqual(body.capabilities, ['totp', 'admin-roles', 'audit-trail', 'service-proxy']);
   assert.equal(typeof body.schemaVersion, 'number');

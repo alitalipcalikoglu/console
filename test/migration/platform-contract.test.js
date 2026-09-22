@@ -14,6 +14,7 @@ import { closeServer, cookiePair, REQUEST_ID, startConsole, TRACEPARENT } from '
 
 const require = createRequire(import.meta.url);
 const canonical = readFileSync(new URL('../../openapi.yaml', import.meta.url), 'utf8');
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 const docsYaml = 'openapi: 3.1.0\ninfo:\n  title: Fixture service\n  version: 1.0.0\npaths: {}\n';
 /** @type {{ url?: string, headers: import('node:http').IncomingHttpHeaders }[]} */
 const docsRequests = [];
@@ -52,7 +53,7 @@ test('operational oracle: health, readiness and service identity remain exact', 
   response = await fetch(`${consoleApp.origin}/v1/info`);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
-    service: 'console', version: '1.1.0', apiVersion: 'v1',
+    service: 'console', version: PACKAGE_VERSION, apiVersion: 'v1',
     capabilities: ['totp', 'admin-roles', 'audit-trail', 'service-proxy'],
     schemaVersion: 2, serviceCore: '1.12.0',
   });
@@ -148,7 +149,7 @@ test('process oracle: configured port, ready IPC, identity and graceful SIGTERM'
     assert.equal(response.status, 200);
     const info = await response.json();
     assert.equal(info.service, 'console');
-    assert.equal(info.version, '1.1.0');
+    assert.equal(info.version, PACKAGE_VERSION);
     assert.equal(info.schemaVersion, 2);
     child.kill('SIGTERM');
     assert.deepEqual(await childExit(child), { code: 0, signal: null });
