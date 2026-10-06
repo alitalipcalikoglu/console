@@ -15,6 +15,7 @@ import { closeServer, cookiePair, REQUEST_ID, startConsole, TRACEPARENT } from '
 const require = createRequire(import.meta.url);
 const canonical = readFileSync(new URL('../../openapi.yaml', import.meta.url), 'utf8');
 const PACKAGE_VERSION = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+const SERVICE_CORE_VERSION = JSON.parse(readFileSync(new URL('../../node_modules/@atc-web/service-core/package.json', import.meta.url), 'utf8')).version;
 const docsYaml = 'openapi: 3.1.0\ninfo:\n  title: Fixture service\n  version: 1.0.0\npaths: {}\n';
 /** @type {{ url?: string, headers: import('node:http').IncomingHttpHeaders }[]} */
 const docsRequests = [];
@@ -55,7 +56,7 @@ test('operational oracle: health, readiness and service identity remain exact', 
   assert.deepEqual(await response.json(), {
     service: 'console', version: PACKAGE_VERSION, apiVersion: 'v1',
     capabilities: ['totp', 'admin-roles', 'audit-trail', 'service-proxy'],
-    schemaVersion: 2, serviceCore: '1.12.0',
+    schemaVersion: 2, serviceCore: SERVICE_CORE_VERSION,
   });
 });
 

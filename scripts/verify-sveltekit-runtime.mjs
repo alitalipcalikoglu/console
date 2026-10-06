@@ -11,6 +11,7 @@ import { Database } from '../src/db.js';
 const TRACEPARENT = /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/;
 const canonical = readFileSync(new URL('../openapi.yaml', import.meta.url), 'utf8');
 const packageVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+const SERVICE_CORE_VERSION = JSON.parse(readFileSync(new URL('../node_modules/@atc-web/service-core/package.json', import.meta.url), 'utf8')).version;
 const scratch = mkdtempSync(join(tmpdir(), 'console-m2-runtime-'));
 
 function freePort() {
@@ -117,7 +118,7 @@ try {
     assert.deepEqual(await response.json(), {
       service: 'console', version: packageVersion, apiVersion: 'v1',
       capabilities: ['totp', 'admin-roles', 'audit-trail', 'service-proxy'],
-      schemaVersion: 2, serviceCore: '1.12.0',
+      schemaVersion: 2, serviceCore: SERVICE_CORE_VERSION,
     });
 
     response = await fetch(`http://127.0.0.1:${http.port}/openapi.yaml`, {
